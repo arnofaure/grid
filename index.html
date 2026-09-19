@@ -1,0 +1,3387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Studio — Modular Layout Grids</title>
+<style>
+  :root{
+    --bg: #0a0a0a;
+    --surface: #1a1a1a;
+    --surface2: #262626;
+    --border: rgba(var(--overlay-rgb),0.08);
+    --border-hover: rgba(var(--overlay-rgb),0.18);
+    --text: #e8e8e8;
+    --text-muted: #999999;
+    --text-dim: #5a5a5a;
+    --accent: #e8e8e8;
+    --danger: #e0584a;
+    --radius: 6px;
+    --radius-lg: 10px;
+    --overlay-rgb: 255,255,255;
+    --dropdown-bg: #262626;
+    --bg-rgb: 10,10,10;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, Helvetica, Arial, sans-serif;
+    --grid-line: #4F9C8F;
+    --margin-line: #C15B44;
+    --baseline-line: #C6A24D;
+    --bleed-line: #d64d8a;
+  }
+  html.light-theme{
+    --bg: #ececea;
+    --surface: #ffffff;
+    --surface2: #e2e2de;
+    --border: rgba(0,0,0,0.1);
+    --border-hover: rgba(0,0,0,0.22);
+    --text: #1c1c1c;
+    --text-muted: #6b6b6b;
+    --text-dim: #a3a3a3;
+    --accent: #1c1c1c;
+    --danger: #c8402f;
+    --overlay-rgb: 0,0,0;
+    --dropdown-bg: #ffffff;
+    --bg-rgb: 236,236,234;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; width:100%;
+    background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:13px;
+    overflow:hidden;
+  }
+  button{font-family:inherit; font-size:inherit;}
+  input,select,textarea{font-family:inherit; font-size:inherit;}
+
+  *{ scrollbar-width:thin; scrollbar-color:var(--border-hover) transparent; }
+  *::-webkit-scrollbar{ width:9px; height:9px; }
+  *::-webkit-scrollbar-track{ background:transparent; }
+  *::-webkit-scrollbar-thumb{ background:var(--border-hover); border-radius:8px; border:2px solid var(--bg); background-clip:padding-box; }
+  *::-webkit-scrollbar-thumb:hover{ background:var(--text-dim); background-clip:padding-box; }
+  *::-webkit-scrollbar-corner{ background:transparent; }
+
+  #app{ display:flex; flex-direction:column; height:100vh; width:100vw; position:relative; z-index:1; }
+
+  #mesh-bg{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      radial-gradient(at 12% 15%, hsla(170, 45%, 50%, 0.10) 0, transparent 48%),
+      radial-gradient(at 88% 10%, hsla(20, 70%, 50%, 0.08) 0, transparent 45%),
+      radial-gradient(at 80% 88%, hsla(42, 70%, 55%, 0.08) 0, transparent 50%),
+      radial-gradient(at 15% 90%, hsla(170, 45%, 50%, 0.06) 0, transparent 48%);
+  }
+  html.light-theme #mesh-bg{
+    background-image:
+      radial-gradient(at 12% 15%, hsla(170, 40%, 40%, 0.08) 0, transparent 48%),
+      radial-gradient(at 88% 10%, hsla(20, 60%, 42%, 0.06) 0, transparent 45%),
+      radial-gradient(at 80% 88%, hsla(42, 60%, 45%, 0.06) 0, transparent 50%),
+      radial-gradient(at 15% 90%, hsla(170, 40%, 40%, 0.05) 0, transparent 48%);
+  }
+
+  /* ---------- Top bar ---------- */
+  #topbar{
+    height:46px; flex:0 0 46px;
+    display:flex; align-items:center; gap:10px;
+    padding:0 12px;
+    background:rgba(var(--bg-rgb),0.92);
+    backdrop-filter:blur(12px);
+    border-bottom:0.5px solid var(--border);
+    -webkit-app-region:drag;
+  }
+  #brand-wrap{ position:relative; -webkit-app-region:no-drag; }
+  #brand{
+    display:flex; align-items:center; gap:4px;
+    background:transparent; border:none; cursor:pointer;
+    font:inherit; font-weight:600; letter-spacing:0.2px; color:var(--text);
+    padding:4px 8px 4px 4px; margin-right:6px;
+    border-radius:var(--radius); transition:background 0.15s;
+    white-space:nowrap;
+  }
+  #brand:hover{ background:var(--surface2); }
+  #brand .mark{
+    display:flex; align-items:center; justify-content:center;
+    width:24px; height:24px; border-radius:var(--radius);
+    background:var(--surface2); color:var(--text);
+  }
+  #brand .mark svg{ display:block; }
+  .tb-dropdown{
+    display:none; flex-direction:column; gap:2px;
+    position:absolute; top:calc(100% + 8px); left:0; min-width:190px;
+    background:var(--dropdown-bg); border:0.5px solid var(--border-hover);
+    border-radius:var(--radius); padding:6px;
+    box-shadow:0 12px 28px rgba(0,0,0,0.45); z-index:300;
+  }
+  .tb-dropdown.open{ display:flex; }
+  .tb-dropdown .tb-btn{
+    width:100%; text-align:left; border-color:transparent;
+    background:transparent; color:var(--text-muted); font-size:12px;
+    padding:6px 8px; cursor:pointer; display:flex; align-items:center; gap:8px;
+    border-radius:var(--radius); transition:background 0.15s, color 0.15s;
+  }
+  .tb-dropdown .tb-btn:hover{ background:var(--surface2); color:var(--text); }
+  .tb-dropdown .tb-btn svg{ flex:0 0 auto; }
+  .tb-sep-h{ height:0.5px; background:var(--border); margin:4px 2px; }
+  .tb-shortcut{ margin-left:auto; font-size:10px; color:var(--text-dim); letter-spacing:0.02em; }
+
+  .topbar-group{ display:flex; align-items:center; gap:6px; -webkit-app-region:no-drag; }
+  .topbar-sep{ width:1px; align-self:stretch; margin:9px 0; background:var(--border); }
+  #topbar label.tb-label{ color:var(--text-muted); font-size:11px; }
+  .dim-field{
+    width:60px; background:transparent; border:0.5px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:5px 6px;
+    font-family:var(--mono); font-size:12px; text-align:right;
+    transition:border-color 0.15s;
+  }
+  .dim-field:hover, .dim-field:focus{ outline:none; border-color:var(--border-hover); }
+  #dim-x{ color:var(--text-dim); font-size:11px; }
+  select.tb-select{
+    background:transparent; border:0.5px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:5px 8px;
+  }
+  button.btn{
+    background:transparent; border:0.5px solid var(--border);
+    color:var(--text-muted); border-radius:var(--radius); padding:6px 11px;
+    cursor:pointer; white-space:nowrap; transition:border-color 0.15s, color 0.15s, background 0.15s;
+    display:flex; align-items:center; gap:6px;
+  }
+  button.btn:hover{ background:var(--surface2); color:var(--text); }
+  button.btn.primary{ background:var(--text); border-color:var(--text); color:var(--bg); font-weight:600; }
+  button.btn.primary:hover{ opacity:0.85; background:var(--text); }
+  button.btn.ghost{ background:transparent; }
+  button.btn:disabled{ opacity:0.4; cursor:default; }
+  #spacer{ flex:1; -webkit-app-region:drag; }
+
+  /* ---------- Main body ---------- */
+  #body{ flex:1; display:flex; min-height:0; }
+  #left-rail{
+    width:210px; flex:0 0 210px; background:var(--surface);
+    border-right:0.5px solid var(--border);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  #right-rail{
+    width:320px; flex:0 0 320px; background:var(--surface);
+    border-left:0.5px solid var(--border);
+    display:flex; flex-direction:column; min-height:0; overflow-y:auto;
+  }
+  .rail-header{
+    height:36px; flex:0 0 36px; display:flex; align-items:center; justify-content:space-between;
+    padding:0 12px; border-bottom:0.5px solid var(--border);
+    color:var(--text-muted); font-size:11px; letter-spacing:0.3px;
+  }
+
+  #stage-wrap{
+    flex:1; min-width:0; position:relative;
+    background:
+      linear-gradient(45deg, var(--surface) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--surface) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--surface) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--surface) 75%);
+    background-color:var(--bg);
+    background-size:22px 22px;
+    background-position:0 0, 0 11px, 11px -11px, -11px 0px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:auto; padding:36px;
+  }
+  #page{
+    position:relative; box-shadow:0 0 0 1px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);
+    background:#ffffff; overflow:hidden; flex:0 0 auto;
+  }
+  /* #page is the full bleed box (trim + bleed on every side); #trim-frame
+     is inset within it by the bleed amount and holds the actual grid/
+     elements, still positioned in plain 0..canvasW/H coordinates — only
+     this wrapper's own offset changes when bleed is added, so nothing
+     else in the app needs to know bleed exists. overflow stays visible
+     here (unlike #page) so dragging an element into the bleed margin
+     shows it there instead of clipping it away during editing. */
+  #trim-frame{ position:absolute; overflow:visible; }
+  #grid-overlay{ position:absolute; inset:0; pointer-events:none; display:block; overflow:visible; }
+  #elements-layer{ position:absolute; inset:0; }
+  #grid-handles{ position:absolute; inset:0; pointer-events:none; z-index:3; }
+  .grid-handle{ position:absolute; pointer-events:auto; background:transparent; transition:background 0.1s; }
+  .grid-handle:hover, .grid-handle.dragging{ background:rgba(79,156,143,0.28); }
+  .grid-handle-col{ cursor:col-resize; }
+  .grid-handle-row{ cursor:row-resize; }
+
+  .el-box{
+    position:absolute; cursor:move; outline:1px solid transparent;
+  }
+  .el-box:hover{ outline-color:rgba(79,156,143,0.55); }
+  .el-box.selected{ outline:1.5px solid var(--grid-line); z-index:5; }
+  .el-clip{ position:absolute; inset:0; overflow:hidden; }
+  .el-box img{ width:100%; height:100%; display:block; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+  .el-text-clip{
+    position:absolute; inset:0; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .el-text-clip.editing{ overflow:visible; }
+  .el-box .el-text{
+    width:100%; flex:0 0 auto; overflow:hidden; outline:none;
+    white-space:pre-wrap; word-wrap:break-word;
+  }
+  .el-box .el-text.editing{ flex:1 1 auto; overflow:visible; }
+  .el-box .el-text:focus{ box-shadow:inset 0 0 0 1px var(--grid-line); }
+  .el-box.crop-mode{ cursor:grab; outline:1.5px solid var(--margin-line); z-index:5; }
+  .el-box.crop-mode:active{ cursor:grabbing; }
+  .el-box.crop-mode .el-handle{ display:none; }
+  .el-box.crop-mode img{ pointer-events:none; }
+  .crop-hint{
+    position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
+    background:rgba(0,0,0,0.72); color:#fff; font-size:10px; padding:4px 8px;
+    border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7;
+  }
+  .el-handle{
+    position:absolute; width:9px; height:9px; background:var(--bg);
+    border:1.5px solid var(--grid-line); border-radius:2px; z-index:6;
+  }
+  .el-handle.nw{ left:-5px; top:-5px; cursor:nwse-resize; }
+  .el-handle.ne{ right:-5px; top:-5px; cursor:nesw-resize; }
+  .el-handle.sw{ left:-5px; bottom:-5px; cursor:nesw-resize; }
+  .el-handle.se{ right:-5px; bottom:-5px; cursor:nwse-resize; }
+  .el-handle.n{ left:50%; top:-5px; margin-left:-4.5px; cursor:ns-resize; }
+  .el-handle.s{ left:50%; bottom:-5px; margin-left:-4.5px; cursor:ns-resize; }
+  .el-handle.w{ left:-5px; top:50%; margin-top:-4.5px; cursor:ew-resize; }
+  .el-handle.e{ right:-5px; top:50%; margin-top:-4.5px; cursor:ew-resize; }
+
+  /* ---------- Layers list ---------- */
+  #layers-list{ flex:1; overflow-y:auto; padding:6px; }
+  .layer-row{
+    display:flex; align-items:center; gap:7px; padding:8px 8px; border-radius:var(--radius);
+    margin-bottom:3px; cursor:pointer; border:1px solid transparent;
+  }
+  .layer-row:hover{ background:var(--surface2); }
+  .layer-row.selected{ background:var(--surface2); border-color:var(--border-hover); }
+  .layer-row.dragging{ background:var(--surface2); border-color:var(--grid-line); opacity:0.85; }
+  .layer-grip{
+    width:14px; height:20px; flex:0 0 14px; display:flex; align-items:center; justify-content:center;
+    color:var(--text-dim); cursor:grab; touch-action:none;
+  }
+  .layer-grip:hover{ color:var(--text-muted); }
+  .layer-row.dragging .layer-grip{ cursor:grabbing; color:var(--text); }
+  .layer-icon{
+    width:20px; height:20px; flex:0 0 20px; display:flex; align-items:center; justify-content:center;
+    color:var(--text-muted); border-radius:2px; background:var(--bg);
+  }
+  .layer-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .layer-name-sub{ color:var(--text-dim); font-size:10px; display:block; }
+  .layer-vis-toggle{
+    width:20px; height:20px; flex:0 0 20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:var(--text-muted); border-radius:2px;
+  }
+  .layer-vis-toggle:hover{ color:var(--text); }
+  .layer-row.disabled .layer-name{ color:var(--text-dim); }
+  #add-layer-wrap{
+    padding:8px; border-top:0.5px solid var(--border); display:flex; flex-direction:column; gap:5px;
+  }
+  .add-layer-btn{
+    display:flex; align-items:center; gap:7px; background:transparent; border:1px dashed var(--border);
+    color:var(--text-muted); border-radius:var(--radius); padding:7px 9px; cursor:pointer;
+    text-align:left; font-size:12px; transition:border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .add-layer-btn:hover{ color:var(--text); border-color:var(--border-hover); background:var(--surface2); }
+  .add-layer-btn .plus{ color:var(--text-muted); font-family:var(--mono); }
+
+  /* ---------- Properties panel ---------- */
+  .props-section{ padding:12px; border-bottom:0.5px solid var(--border); }
+  .props-section h3{
+    margin:0 0 10px 0; font-size:11px; font-weight:600; letter-spacing:0.4px;
+    color:var(--text-muted); text-transform:uppercase;
+  }
+  .field-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; gap:10px; }
+  .field-row label{ color:var(--text-muted); flex:0 0 auto; font-size:12px; }
+  .field-row .control{ flex:1; display:flex; justify-content:flex-end; }
+  .field-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:9px; }
+  .field-grid2 label{ display:block; color:var(--text-muted); font-size:10.5px; margin-bottom:3px; }
+  .field-grid4{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:9px; }
+  .field-grid4 label{ display:block; color:var(--text-muted); font-size:10.5px; margin-bottom:3px; }
+
+  input[type="text"].name-field, input[type="text"].text-field{
+    width:100%; background:transparent; border:0.5px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:6px 8px;
+  }
+  input[type="text"].name-field:hover, input[type="text"].name-field:focus,
+  input[type="text"].text-field:hover, input[type="text"].text-field:focus{ outline:none; border-color:var(--border-hover); }
+
+  input[type="number"].num-input, input[type="number"].num-input-full{
+    background:transparent; border:0.5px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:5px 6px;
+    font-family:var(--mono); font-size:11px; text-align:right;
+  }
+  input[type="number"].num-input{ width:60px; }
+  input[type="number"].num-input-full{ width:100%; text-align:left; }
+  input[type="number"].num-input:hover, input[type="number"].num-input:focus,
+  input[type="number"].num-input-full:hover, input[type="number"].num-input-full:focus{ outline:none; border-color:var(--border-hover); }
+  .num-combo{ display:flex; align-items:center; gap:4px; }
+  .slider-row{ display:flex; align-items:center; gap:8px; width:100%; }
+  .rslider{
+    position:relative; flex:1; height:22px; min-width:60px;
+    display:flex; align-items:center; cursor:pointer; touch-action:none;
+  }
+  .rslider-track{ position:relative; width:100%; height:4px; background:var(--surface2); border-radius:2px; }
+  .rslider-fill{ position:absolute; top:0; left:0; height:100%; width:0%; background:var(--text-dim); border-radius:2px; pointer-events:none; }
+  .rslider-thumb{
+    position:absolute; top:50%; left:0%; width:14px; height:14px;
+    margin-left:-7px; margin-top:-7px; border-radius:50%;
+    background:var(--text); border:2px solid var(--surface); box-shadow:0 0 0 1px var(--border-hover);
+    pointer-events:none;
+  }
+  .rslider:hover .rslider-thumb{ opacity:0.85; }
+  .slider-row .num-input{ width:52px; flex:0 0 auto; }
+  .stepper{ display:flex; flex-direction:column; border:0.5px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .stepper button{
+    background:transparent; border:none; color:var(--text-muted); width:16px; height:11px;
+    cursor:pointer; padding:0; line-height:0; display:flex; align-items:center; justify-content:center;
+    font-size:8px; transition:background 0.15s, color 0.15s;
+  }
+  .stepper button:first-child{ border-bottom:0.5px solid var(--border); }
+  .stepper button:hover{ background:var(--surface2); color:var(--text); }
+  .stepper button:active{ background:var(--text); color:var(--bg); }
+
+  select.prop-select{
+    background:transparent; border:0.5px solid var(--border); color:var(--text);
+    border-radius:var(--radius); padding:5px 7px; width:100%;
+  }
+  input[type="color"]{
+    -webkit-appearance:none; appearance:none; width:26px; height:26px;
+    border:0.5px solid var(--border); border-radius:var(--radius); background:transparent; cursor:pointer; padding:0;
+  }
+  input[type="color"]::-webkit-color-swatch{ border:none; border-radius:2px; }
+
+  .seg-control{ display:flex; background:var(--surface2); border:0.5px solid var(--border); border-radius:var(--radius); overflow:hidden; padding:2px; gap:2px; }
+  .seg-control button{
+    background:transparent; border:none; color:var(--text-muted); border-radius:calc(var(--radius) - 2px);
+    padding:5px 10px; cursor:pointer; font-size:12px; flex:1;
+  }
+  .seg-control button.active{ background:var(--text); color:var(--bg); font-weight:600; }
+  .seg-control button:hover:not(.active){ color:var(--text); }
+
+  .checkbox-row{ display:flex; align-items:center; gap:8px; margin-bottom:9px; cursor:pointer; }
+  .checkbox-row input{ accent-color:var(--text); width:14px; height:14px; }
+  .checkbox-row label{ color:var(--text-muted); font-size:12px; cursor:pointer; }
+
+  .col-swatch-row{ display:flex; align-items:center; gap:8px; }
+
+  #empty-props{ padding:40px 20px; text-align:center; color:var(--text-dim); font-size:12px; line-height:1.6; }
+
+  .font-combo{ position:relative; width:100%; }
+  .font-combo input{ width:100%; }
+  .font-list{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; max-height:220px; overflow-y:auto;
+    background:var(--dropdown-bg); border:0.5px solid var(--border-hover); border-radius:var(--radius);
+    box-shadow:0 12px 28px rgba(0,0,0,0.45); z-index:50; padding:4px;
+  }
+  .font-list.open{ display:block; }
+  .font-item{ padding:6px 8px; border-radius:var(--radius); cursor:pointer; font-size:13px; color:var(--text); }
+  .font-item:hover{ background:var(--surface2); }
+
+  .danger-btn{
+    width:100%; background:transparent; border:0.5px solid var(--border); color:var(--danger);
+    border-radius:var(--radius); padding:8px; cursor:pointer; font-size:12px; margin-top:4px;
+    transition:background 0.15s;
+  }
+  .danger-btn:hover{ background:rgba(224,88,74,0.1); }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(8px);
+    background:var(--surface2); border:0.5px solid var(--border-hover);
+    color:var(--text); padding:8px 14px; border-radius:var(--radius); font-size:12px;
+    opacity:0; pointer-events:none; transition:opacity 0.2s, transform 0.2s;
+    z-index:100; box-shadow:0 12px 28px rgba(0,0,0,0.35);
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:200;
+    display:none; align-items:center; justify-content:center;
+  }
+  .modal-backdrop.show{ display:flex; }
+  .modal{
+    background:var(--surface); border:1.5px solid rgba(var(--overlay-rgb),0.35);
+    border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,0.6);
+    padding:18px; width:320px; color:var(--text);
+  }
+  .modal h4{ margin:0 0 12px 0; font-size:13px; }
+  .modal .modal-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
+  .modal .modal-actions.stack{ flex-direction:column; align-items:stretch; }
+  .modal .modal-actions.stack > div{ display:flex; gap:8px; }
+
+  /* ---------- Print / PDF export ---------- */
+  #print-root{ display:none; }
+  @media print{
+    body > *:not(#print-root){ display:none !important; }
+    #print-root{ display:block !important; }
+    html, body{ margin:0; padding:0; background:#fff; }
+  }
+  .print-page{ position:relative; overflow:hidden; }
+  .print-el{ position:absolute; overflow:hidden; }
+  .print-el .print-clip{ position:absolute; inset:0; overflow:hidden; }
+  .print-el img{ width:100%; height:100%; display:block; }
+  .print-el .print-text{
+    width:100%; flex:0 0 auto; white-space:pre-wrap; word-wrap:break-word; margin:0;
+  }
+  .modal input[type="text"]{
+    width:100%; background:transparent; border:0.5px solid var(--border);
+    color:var(--text); border-radius:var(--radius); padding:7px 9px; margin-bottom:4px;
+  }
+  .modal input[type="text"]:hover, .modal input[type="text"]:focus{ outline:none; border-color:var(--border-hover); }
+  .preset-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 4px; border-bottom:0.5px solid var(--border); font-size:12px;
+  }
+  .preset-item .pname{ cursor:pointer; flex:1; }
+  .preset-item .pname:hover{ color:var(--text); text-decoration:underline; }
+  .preset-item button{ background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; }
+  .preset-item button:hover{ color:var(--danger); }
+  #version-list{ max-height:240px; overflow-y:auto; margin-bottom:10px; }
+  #version-empty{ color:var(--text-dim); font-size:12px; padding:8px 4px; }
+  .hidden-file-input{ display:none; }
+</style>
+</head>
+<body>
+<div id="mesh-bg"></div>
+<div id="app">
+
+  <div id="topbar">
+    <div id="brand-wrap">
+      <button id="brand" title="Grid Studio">
+        <span class="mark">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </span>
+        <span>GRID STUDIO</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="tb-dropdown" id="brand-dropdown">
+        <button class="tb-btn" id="menu-light" title="Switch between dark and light mode">
+          <svg id="theme-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.94" y2="5.94"/><line x1="18.06" y1="18.06" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.94" y2="18.06"/><line x1="18.06" y1="5.94" x2="19.78" y2="4.22"/></svg>
+          <span id="theme-label">Light mode</span>
+        </button>
+        <div class="tb-sep-h"></div>
+        <button class="tb-btn" id="menu-undo" title="Undo (⌘Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><polyline points="3 21 3 15 9 15"/></svg>
+          Undo <span class="tb-shortcut">⌘Z</span>
+        </button>
+        <button class="tb-btn" id="menu-redo" title="Redo (⌘⇧Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 0-3 6.7"/><polyline points="21 21 21 15 15 15"/></svg>
+          Redo <span class="tb-shortcut">⌘⇧Z</span>
+        </button>
+        <div class="tb-sep-h"></div>
+        <button class="tb-btn" id="menu-save-version">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save version as…
+        </button>
+        <button class="tb-btn" id="menu-versions">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Page versions…
+        </button>
+      </div>
+    </div>
+
+    <div class="topbar-group">
+      <label class="tb-label">Page</label>
+      <input type="number" id="canvas-w" class="dim-field" value="1600" min="10" max="20000" step="1">
+      <span id="dim-x">&times;</span>
+      <input type="number" id="canvas-h" class="dim-field" value="2000" min="10" max="20000" step="1">
+      <select id="canvas-unit" class="tb-select">
+        <option value="px">px</option>
+        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="in">in</option>
+      </select>
+    </div>
+
+    <select id="preset-size" class="tb-select">
+      <option value="">Page presets&hellip;</option>
+      <option value="1600|2000|px">Poster 4:5 — 1600×2000 px</option>
+      <option value="1920|1080|px">Widescreen 16:9 — 1920×1080 px</option>
+      <option value="1080|1080|px">Square — 1080×1080 px</option>
+      <option value="210|297|mm">A4 portrait — 210×297 mm</option>
+      <option value="297|210|mm">A4 landscape — 297×210 mm</option>
+      <option value="8.5|11|in">US Letter — 8.5×11 in</option>
+    </select>
+
+    <div class="topbar-sep"></div>
+
+    <div class="topbar-group">
+      <button class="btn ghost" id="btn-add-image">+ Image</button>
+      <button class="btn ghost" id="btn-add-text">+ Text</button>
+    </div>
+
+    <div id="spacer"></div>
+
+    <div class="topbar-group">
+      <button class="btn primary" id="btn-export">Export&hellip;</button>
+    </div>
+  </div>
+
+  <div id="body">
+
+    <div id="left-rail">
+      <div class="rail-header"><span>LAYERS</span></div>
+      <div id="layers-list"></div>
+      <div id="add-layer-wrap">
+        <button class="add-layer-btn" id="btn-add-image-2"><span class="plus">+</span> Image</button>
+        <button class="add-layer-btn" id="btn-add-text-2"><span class="plus">+</span> Text block</button>
+      </div>
+    </div>
+
+    <div id="stage-wrap">
+      <div id="page">
+        <div id="trim-frame">
+          <svg id="grid-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div id="elements-layer"></div>
+          <div id="grid-handles"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="right-rail">
+      <div class="rail-header"><span id="props-title">GRID</span></div>
+      <div id="props-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<input type="file" id="file-input" class="hidden-file-input" accept="image/*">
+<div id="toast"></div>
+
+<div class="modal-backdrop" id="export-modal">
+  <div class="modal">
+    <h4>Export page</h4>
+    <div class="checkbox-row"><input type="checkbox" id="export-guides"><label for="export-guides">Include grid guides</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="export-transparent"><label for="export-transparent">Transparent background (PNG)</label></div>
+    <div class="checkbox-row" id="export-bleed-row" hidden><input type="checkbox" id="export-bleed" checked><label for="export-bleed">Include bleed (larger canvas)</label></div>
+    <div class="modal-actions stack">
+      <div>
+        <button class="btn ghost" id="export-svg">Download SVG</button>
+        <button class="btn primary" id="export-png">Download PNG</button>
+      </div>
+      <div>
+        <button class="btn ghost" id="export-pdf" style="width:100%; justify-content:center;">Export PDF (real, selectable text)…</button>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn ghost" id="export-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="print-root"></div>
+
+<div class="modal-backdrop" id="save-version-modal">
+  <div class="modal">
+    <h4>Save this page as a version</h4>
+    <input type="text" id="version-name-input" placeholder="e.g. Cover — 4 columns">
+    <div class="modal-actions">
+      <button class="btn ghost" id="version-save-cancel">Cancel</button>
+      <button class="btn primary" id="version-save-confirm">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="versions-modal">
+  <div class="modal">
+    <h4>Page versions</h4>
+    <div id="version-list"></div>
+    <div id="version-empty" style="display:none;">No saved versions yet.</div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="versions-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const HTMLNS = "http://www.w3.org/1999/xhtml";
+
+/* ---------------------------------------------------------------------
+   STATE
+--------------------------------------------------------------------- */
+let state = {
+  canvasW: 1600,
+  canvasH: 2000,
+  canvasUnit: 'px',
+  bgColor: '#ffffff',
+  bleed: 0,
+  grid: {
+    marginTop: 80, marginRight: 80, marginBottom: 80, marginLeft: 80,
+    cols: 6, rows: 8, gutterX: 20, gutterY: 20,
+    colRatios: [1,1,1,1,1,1], rowRatios: [1,1,1,1,1,1,1,1],
+    showGrid: true, showMargins: true,
+    showBaseline: false, baselineStep: 24,
+    locked: false,
+    mode: 'modular', diagCellSize: 150, diagAngle: 45
+  },
+  elements: [],
+  selectedId: null
+};
+
+const UNIT_TO_PX = { px: 1, mm: 96/25.4, cm: 96/2.54, in: 96 };
+const EXPORT_DPI = 300;
+
+function convertUnits(value, fromUnit, toUnit){
+  if(fromUnit === toUnit) return value;
+  const px = value * UNIT_TO_PX[fromUnit];
+  return px / UNIT_TO_PX[toUnit];
+}
+// Sizes authored in reference pixels (font size, stroke widths) stay
+// visually constant no matter what display unit the page is in — see
+// the lesson from Phi Guide: a value stored raw in "canvas units" turns
+// enormous the moment the unit switches to inches. Convert at render
+// time instead of storing a unit-dependent number.
+function refPx(px){ return state.canvasUnit === 'px' ? px : px / UNIT_TO_PX[state.canvasUnit]; }
+function pxFromRef(canvasUnitsValue){ return state.canvasUnit === 'px' ? canvasUnitsValue : canvasUnitsValue * UNIT_TO_PX[state.canvasUnit]; }
+
+function uid(){ return 'e' + Math.random().toString(36).slice(2,9); }
+function fx(n){ return Math.round(n*100)/100; }
+function round4(v){ return Math.round(v*10000)/10000; }
+function clamp(v,min,max){ return Math.min(max, Math.max(min, v)); }
+
+/* ---------------------------------------------------------------------
+   HISTORY (undo / redo) — a full snapshot of the committed page state,
+   pushed right before each discrete, user-intended change (a button
+   click, a field commit, the moment a drag/resize gesture starts...).
+   Continuous in-gesture updates never push their own snapshot — only
+   the state right before the gesture began does, so one undo reverts
+   the whole drag/typing session, not every intermediate pixel.
+--------------------------------------------------------------------- */
+let undoStack = [];
+let redoStack = [];
+const HISTORY_LIMIT = 60;
+function snapshotState(){
+  return JSON.stringify({
+    canvasW: state.canvasW, canvasH: state.canvasH, canvasUnit: state.canvasUnit,
+    bgColor: state.bgColor, grid: state.grid, elements: state.elements
+  });
+}
+function pushHistory(){
+  undoStack.push(snapshotState());
+  if(undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  redoStack = [];
+}
+function restoreSnapshot(json){
+  const data = JSON.parse(json);
+  state.canvasW = data.canvasW; state.canvasH = data.canvasH; state.canvasUnit = data.canvasUnit;
+  state.bgColor = data.bgColor; state.grid = data.grid; state.elements = data.elements;
+  state.selectedId = null;
+  wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
+  applyUnitStep();
+  renderAll();
+}
+function undo(){
+  if(undoStack.length === 0){ toast('Nothing to undo'); return; }
+  redoStack.push(snapshotState());
+  restoreSnapshot(undoStack.pop());
+  toast('Undo');
+}
+function redo(){
+  if(redoStack.length === 0){ toast('Nothing to redo'); return; }
+  undoStack.push(snapshotState());
+  restoreSnapshot(redoStack.pop());
+  toast('Redo');
+}
+
+/* ---------------------------------------------------------------------
+   GRID GEOMETRY — Müller-Brockmann style modular grid: margins define
+   the live area, which is divided into `cols` x `rows` modules
+   separated by fixed gutters. Column/row boundaries double as both the
+   visual guide lines AND the snap targets for placing elements — a
+   block spans one or more whole modules, the way Grid Systems in
+   Graphic Design intends. Row boundaries also serve as the flowlines:
+   horizontal alignment points that keep unrelated blocks starting at
+   the same height across the page.
+
+   Columns/rows don't have to be equal width — colRatios/rowRatios hold
+   one relative-width number per column/row (default all 1s = today's
+   uniform grid). A column with ratio 2 gets twice the share of the
+   available space as one with ratio 1, e.g. colRatios [1,2,1] on a
+   3-column grid — the asymmetric layouts throughout Grid Systems in
+   Graphic Design (a wide image column flanked by two narrow text
+   columns, etc.) are exactly this.
+--------------------------------------------------------------------- */
+// Keeps a ratios array in sync with a column/row count: trims it down,
+// or pads new entries with 1 (full width share) so a newly-added
+// column/row starts equal-width rather than zero-width.
+function syncRatios(arr, count){
+  arr = Array.isArray(arr) ? arr : [];
+  const out = arr.slice(0, count);
+  while(out.length < count) out.push(1);
+  return out;
+}
+
+function computeGrid(){
+  const g = state.grid;
+  const w = state.canvasW, h = state.canvasH;
+  const innerW = Math.max(0, w - g.marginLeft - g.marginRight);
+  const innerH = Math.max(0, h - g.marginTop - g.marginBottom);
+
+  if(g.mode === 'diagonal'){
+    return computeDiagonalGrid(g, w, h, innerW, innerH);
+  }
+
+  const colRatios = syncRatios(g.colRatios, g.cols);
+  const rowRatios = syncRatios(g.rowRatios, g.rows);
+
+  const colGutterTotal = g.gutterX * Math.max(0, g.cols - 1);
+  const availableForCols = Math.max(0, innerW - colGutterTotal);
+  const colSum = colRatios.reduce((a,b) => a + Math.max(0.01, b), 0) || g.cols || 1;
+  const colBounds = [];
+  let cursorX = g.marginLeft;
+  for(let i=0;i<g.cols;i++){
+    const width = availableForCols * (Math.max(0.01, colRatios[i]) / colSum);
+    colBounds.push({ start: cursorX, end: cursorX + width });
+    cursorX += width + g.gutterX;
+  }
+
+  const rowGutterTotal = g.gutterY * Math.max(0, g.rows - 1);
+  const availableForRows = Math.max(0, innerH - rowGutterTotal);
+  const rowSum = rowRatios.reduce((a,b) => a + Math.max(0.01, b), 0) || g.rows || 1;
+  const rowBounds = [];
+  let cursorY = g.marginTop;
+  for(let i=0;i<g.rows;i++){
+    const height = availableForRows * (Math.max(0.01, rowRatios[i]) / rowSum);
+    rowBounds.push({ start: cursorY, end: cursorY + height });
+    cursorY += height + g.gutterY;
+  }
+
+  // Snap targets: every column/row start & end, plus the page edges.
+  const snapX = new Set([0, w]);
+  colBounds.forEach(c => { snapX.add(round4(c.start)); snapX.add(round4(c.end)); });
+  const snapY = new Set([0, h]);
+  rowBounds.forEach(r => { snapY.add(round4(r.start)); snapY.add(round4(r.end)); });
+
+  return {
+    mode: 'modular', innerW, innerH, colBounds, rowBounds,
+    snapX: Array.from(snapX).sort((a,b)=>a-b),
+    snapY: Array.from(snapY).sort((a,b)=>a-b)
+  };
+}
+
+/* ---------------------------------------------------------------------
+   DIAGONAL GRID — a square lattice rotated by `diagAngle` around the
+   margin box's center, then clipped to that box — the "shop window"
+   grids from Grid Systems in Graphic Design (a diamond wall of modules,
+   cut off wherever it meets the page's margins). colBounds/rowBounds
+   fall back to a single cell spanning the whole margin box, so the
+   handful of call sites shared with the modular grid (default element
+   placement, "Randomize position"...) keep working unmodified —
+   diagPoints (the lattice's own intersections) is what element
+   dragging actually snaps to in this mode, see startDrag().
+--------------------------------------------------------------------- */
+function computeDiagonalGrid(g, w, h, innerW, innerH){
+  const x0 = g.marginLeft, y0 = g.marginTop, x1 = w - g.marginRight, y1 = h - g.marginBottom;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const cellSize = Math.max(4, g.diagCellSize || 150);
+  const angleDeg = g.diagAngle !== undefined ? g.diagAngle : 45;
+  const angleRad = angleDeg * Math.PI / 180;
+  const cosA = Math.cos(angleRad), sinA = Math.sin(angleRad);
+  const diagLen = Math.sqrt(Math.pow(x1-x0, 2) + Math.pow(y1-y0, 2));
+  const N = Math.min(80, Math.ceil(diagLen / (2*cellSize)) + 2); // capped so a tiny cell size can't blow up the point count
+
+  const diagPoints = [];
+  const pad = cellSize * 0.15;
+  for(let i=-N;i<=N;i++){
+    for(let j=-N;j<=N;j++){
+      const lx = i*cellSize, ly = j*cellSize;
+      const rx = cx + lx*cosA - ly*sinA;
+      const ry = cy + lx*sinA + ly*cosA;
+      if(rx >= x0-pad && rx <= x1+pad && ry >= y0-pad && ry <= y1+pad){
+        diagPoints.push({ x: rx, y: ry });
+      }
+    }
+  }
+
+  return {
+    mode: 'diagonal', innerW, innerH,
+    colBounds: [{ start: x0, end: x1 }],
+    rowBounds: [{ start: y0, end: y1 }],
+    snapX: [0, w, x0, x1], snapY: [0, h, y0, y1],
+    diagPoints, diagCenter: { x: cx, y: cy }, diagAngle: angleDeg, diagCellSize: cellSize,
+    marginBox: { x0, y0, x1, y1 }
+  };
+}
+
+function snapValue(value, targets, threshold){
+  let best = value, bestDist = threshold;
+  for(const t of targets){
+    const d = Math.abs(t - value);
+    if(d < bestDist){ bestDist = d; best = t; }
+  }
+  return best;
+}
+
+// Snaps a point to the nearest diagonal-lattice intersection within
+// `threshold`, or returns null if none is close enough.
+function snapToDiagPoint(px, py, diagPoints, threshold){
+  let best = null, bestDist = threshold;
+  for(const p of diagPoints){
+    const d = Math.hypot(p.x - px, p.y - py);
+    if(d < bestDist){ bestDist = d; best = p; }
+  }
+  return best;
+}
+
+// Snaps to the diagonal lattice's LINES, not just its intersections —
+// each of the two rotated line families is checked independently, so a
+// point close to only one line (but not near a crossing) still slides
+// along it, exactly like snapping to a single guide in Figma/InDesign
+// instead of only ever landing on a corner.
+function snapToDiagLines(px, py, geo, threshold){
+  const { diagCenter, diagAngle, diagCellSize } = geo;
+  const rad = diagAngle * Math.PI/180;
+  const cosA = Math.cos(rad), sinA = Math.sin(rad);
+  const dx = px - diagCenter.x, dy = py - diagCenter.y;
+  // world -> local (unrotated) frame, one axis per line family
+  let lx = dx*cosA + dy*sinA;
+  let ly = -dx*sinA + dy*cosA;
+
+  const nearestLx = Math.round(lx/diagCellSize) * diagCellSize;
+  const nearestLy = Math.round(ly/diagCellSize) * diagCellSize;
+  const snappedX = Math.abs(lx - nearestLx) < threshold;
+  const snappedY = Math.abs(ly - nearestLy) < threshold;
+  if(!snappedX && !snappedY) return null;
+  if(snappedX) lx = nearestLx;
+  if(snappedY) ly = nearestLy;
+
+  // local -> world (forward rotation)
+  return {
+    x: diagCenter.x + lx*cosA - ly*sinA,
+    y: diagCenter.y + lx*sinA + ly*cosA
+  };
+}
+
+function rotateVec(x, y, rad){
+  const c = Math.cos(rad), s = Math.sin(rad);
+  return { x: x*c - y*s, y: x*s + y*c };
+}
+
+// Fixed local-frame fraction of each corner handle (of the box's own
+// w/h, relative to its center) — used by the rotated-resize corner
+// snapping in startResize().
+const CORNER_FRACS = {
+  nw: { x:-0.5, y:-0.5 }, ne: { x:0.5, y:-0.5 },
+  sw: { x:-0.5, y:0.5 }, se: { x:0.5, y:0.5 }
+};
+
+// Edge-handle resize (n/s/e/w) only moves ONE world-space point along
+// ONE direction (the box's own local axis) — snapping that to a 2D
+// lattice point doesn't make sense, so instead this projects the raw
+// point onto each grid line family and, for whichever family the
+// movement direction actually crosses (its dot product with that
+// family's normal isn't near-zero), returns the scalar shift — along
+// the movement direction — needed to land the point on the nearest
+// line of that family. Returns null when nothing's close enough, or
+// when movement is too oblique to either family to shift sensibly.
+function snapEdgeProjected(rawWorldPoint, moveDirWorld, geo, threshold){
+  const rad = geo.diagAngle * Math.PI/180;
+  const gridX = { x: Math.cos(rad), y: Math.sin(rad) };
+  const gridY = { x: -Math.sin(rad), y: Math.cos(rad) };
+  const relX = rawWorldPoint.x - geo.diagCenter.x, relY = rawWorldPoint.y - geo.diagCenter.y;
+  const projX = relX*gridX.x + relY*gridX.y;
+  const projY = relX*gridY.x + relY*gridY.y;
+  const dotX = moveDirWorld.x*gridX.x + moveDirWorld.y*gridX.y;
+  const dotY = moveDirWorld.x*gridY.x + moveDirWorld.y*gridY.y;
+
+  let best = null;
+  if(Math.abs(dotX) > 0.35){
+    const nearest = Math.round(projX/geo.diagCellSize) * geo.diagCellSize;
+    const diff = nearest - projX;
+    if(Math.abs(diff) < threshold){
+      const shift = diff/dotX;
+      if(best === null || Math.abs(shift) < Math.abs(best)) best = shift;
+    }
+  }
+  if(Math.abs(dotY) > 0.35){
+    const nearest = Math.round(projY/geo.diagCellSize) * geo.diagCellSize;
+    const diff = nearest - projY;
+    if(Math.abs(diff) < threshold){
+      const shift = diff/dotY;
+      if(best === null || Math.abs(shift) < Math.abs(best)) best = shift;
+    }
+  }
+  return best;
+}
+
+/* ---------------------------------------------------------------------
+   ELEMENTS
+--------------------------------------------------------------------- */
+// In diagonal mode a fresh element is centered on the lattice
+// intersection nearest the margin box's middle, sized to roughly two
+// grid cells, and pre-rotated to match the lattice angle — so it drops
+// in already aligned with the diamond pattern instead of landing
+// axis-aligned and needing to be rotated by hand every time.
+function defaultDiagonalPlacement(geo, w, h){
+  const anchor = geo.diagPoints.length ? snapToDiagPoint(geo.diagCenter.x, geo.diagCenter.y, geo.diagPoints, Infinity) : geo.diagCenter;
+  return { x: anchor.x - w/2, y: anchor.y - h/2 };
+}
+
+function defaultImageElement(){
+  const geo = computeGrid();
+  let x, y, w, h;
+  if(geo.mode === 'diagonal'){
+    w = geo.diagCellSize * 1.6; h = geo.diagCellSize * 1.6;
+    const pos = defaultDiagonalPlacement(geo, w, h);
+    x = pos.x; y = pos.y;
+  } else {
+    const c0 = geo.colBounds[0] || {start:state.grid.marginLeft, end:state.grid.marginLeft+200};
+    const c1 = geo.colBounds[Math.min(1, geo.colBounds.length-1)] || c0;
+    const r0 = geo.rowBounds[0] || {start:state.grid.marginTop, end:state.grid.marginTop+200};
+    const r1 = geo.rowBounds[Math.min(2, geo.rowBounds.length-1)] || r0;
+    x = c0.start; y = r0.start; w = c1.end-c0.start; h = r1.end-r0.start;
+  }
+  return {
+    id: uid(), type: 'image', name: 'Image',
+    x, y, w, h,
+    src: null, fit: 'cover', panX: 50, panY: 50, zoom: 1, imgRotation: 0, visible: true,
+    rotation: geo.mode === 'diagonal' ? geo.diagAngle : 0
+  };
+}
+function defaultTextElement(){
+  const geo = computeGrid();
+  let x, y, w, h;
+  if(geo.mode === 'diagonal'){
+    w = geo.diagCellSize * 1.6; h = geo.diagCellSize * 1.6;
+    const pos = defaultDiagonalPlacement(geo, w, h);
+    x = pos.x; y = pos.y;
+  } else {
+    const c0 = geo.colBounds[0] || {start:state.grid.marginLeft, end:state.grid.marginLeft+300};
+    const c1 = geo.colBounds[Math.min(2, geo.colBounds.length-1)] || c0;
+    const r0 = geo.rowBounds[0] || {start:state.grid.marginTop, end:state.grid.marginTop+120};
+    x = c0.start; y = r0.start; w = c1.end-c0.start; h = 120;
+  }
+  return {
+    id: uid(), type: 'text', name: 'Text',
+    x, y, w, h,
+    content: 'Type something', fontFamily: 'Helvetica, Arial, sans-serif',
+    googleFont: '', fontSize: 24, lineHeight: 1.3, letterSpacing: 0,
+    weight: 400, italic: false, align: 'left', color: '#111111', visible: true,
+    autoFit: false, vAlign: 'top',
+    rotation: geo.mode === 'diagonal' ? geo.diagAngle : 0
+  };
+}
+
+function addElement(el){
+  pushHistory();
+  state.elements.push(el);
+  state.selectedId = el.id;
+  renderAll();
+}
+function getElement(id){ return state.elements.find(e => e.id === id); }
+function deleteElement(id){
+  const idx = state.elements.findIndex(e => e.id === id);
+  if(idx === -1) return;
+  pushHistory();
+  state.elements.splice(idx, 1);
+  if(state.selectedId === id) state.selectedId = null;
+  renderAll();
+}
+
+/* ---------------------------------------------------------------------
+   LOREM IPSUM — inserted on demand per text block (never automatic),
+   so it's easy to eyeball how a grid handles real paragraph lengths
+   without having to type placeholder copy by hand.
+--------------------------------------------------------------------- */
+const LOREM_WORDS = ('lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod '+
+  'tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis '+
+  'nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis '+
+  'aute irure in reprehenderit voluptate velit esse cillum eu fugiat nulla pariatur '+
+  'excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt '+
+  'mollit anim id est laborum').split(' ');
+function loremIpsum(wordCount){
+  const words = [];
+  for(let i=0;i<wordCount;i++) words.push(LOREM_WORDS[i % LOREM_WORDS.length]);
+  let s = words.join(' ') + '.';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/* ---------------------------------------------------------------------
+   RANDOM PLACEMENT — snaps an element to a random module span, to
+   quickly explore alternate positions/sizes within the live grid.
+--------------------------------------------------------------------- */
+function randomizeElementPosition(el){
+  const geo = computeGrid();
+  if(geo.mode === 'diagonal'){
+    if(geo.diagPoints.length === 0) return;
+    const anchor = geo.diagPoints[Math.floor(Math.random()*geo.diagPoints.length)];
+    const span = 1 + Math.floor(Math.random()*2); // 1 or 2 cells
+    const size = geo.diagCellSize * span * 0.9;
+    el.w = size; el.h = size;
+    el.x = anchor.x - size/2; el.y = anchor.y - size/2;
+    el.rotation = geo.diagAngle;
+    return;
+  }
+  if(geo.colBounds.length === 0 || geo.rowBounds.length === 0) return;
+  const maxColSpan = Math.min(4, geo.colBounds.length);
+  const maxRowSpan = Math.min(4, geo.rowBounds.length);
+  const colSpan = 1 + Math.floor(Math.random()*maxColSpan);
+  const rowSpan = 1 + Math.floor(Math.random()*maxRowSpan);
+  const colStart = Math.floor(Math.random()*(geo.colBounds.length - colSpan + 1));
+  const rowStart = Math.floor(Math.random()*(geo.rowBounds.length - rowSpan + 1));
+  el.x = geo.colBounds[colStart].start;
+  el.y = geo.rowBounds[rowStart].start;
+  el.w = geo.colBounds[colStart+colSpan-1].end - el.x;
+  el.h = geo.rowBounds[rowStart+rowSpan-1].end - el.y;
+}
+function shuffleAllElements(){
+  if(state.elements.length === 0){ toast('No elements to shuffle'); return; }
+  pushHistory();
+  state.elements.forEach(el => randomizeElementPosition(el));
+  renderAll();
+  toast('Layout shuffled');
+}
+
+/* ---------------------------------------------------------------------
+   GOOGLE FONTS
+--------------------------------------------------------------------- */
+const GOOGLE_FONTS = [
+  'Inter','Roboto','Open Sans','Lato','Montserrat','Poppins','Source Sans 3',
+  'Playfair Display','Merriweather','PT Serif','Lora','Libre Baskerville',
+  'Oswald','Bebas Neue','Archivo','Archivo Black','Work Sans','DM Sans',
+  'Space Grotesk','Manrope','Sora','Fraunces','Cormorant Garamond',
+  'IBM Plex Sans','IBM Plex Serif','IBM Plex Mono','JetBrains Mono',
+  'Crimson Pro','EB Garamond','Newsreader','Instrument Sans','Karla',
+  'Rubik','Barlow','Nunito Sans','Josefin Sans','Zilla Slab'
+];
+const loadedFonts = new Set();
+function ensureGoogleFont(family){
+  if(!family || loadedFonts.has(family)) return;
+  loadedFonts.add(family);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=' +
+    encodeURIComponent(family).replace(/%20/g,'+') +
+    ':ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap';
+  document.head.appendChild(link);
+}
+function fontStackFor(el){
+  if(el.googleFont){ return `"${el.googleFont}", ${el.fontFamily || 'sans-serif'}`; }
+  return el.fontFamily || 'sans-serif';
+}
+
+/* ---------------------------------------------------------------------
+   STAGE — scale-to-fit + rendering
+--------------------------------------------------------------------- */
+let pageScale = 1;
+
+function renderStage(){
+  const w = state.canvasW, h = state.canvasH;
+  const bleed = state.bleed || 0;
+  const page = document.getElementById('page');
+  const trimFrame = document.getElementById('trim-frame');
+  const wrap = document.getElementById('stage-wrap');
+  const availW = wrap.clientWidth - 72;
+  const availH = wrap.clientHeight - 72;
+  // #page spans the full bleed box; scale-to-fit has to account for
+  // that larger size too, or a big bleed would push the trim area past
+  // the visible stage.
+  const totalW = w + bleed*2, totalH = h + bleed*2;
+  pageScale = Math.min(availW / totalW, availH / totalH, 40);
+  page.style.width = (totalW*pageScale) + 'px';
+  page.style.height = (totalH*pageScale) + 'px';
+  page.style.background = state.bgColor;
+  trimFrame.style.left = (bleed*pageScale) + 'px';
+  trimFrame.style.top = (bleed*pageScale) + 'px';
+  trimFrame.style.width = (w*pageScale) + 'px';
+  trimFrame.style.height = (h*pageScale) + 'px';
+
+  const svg = document.getElementById('grid-overlay');
+  svg.setAttribute('width', w*pageScale);
+  svg.setAttribute('height', h*pageScale);
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  buildGridOverlaySVG(svg);
+  renderGridHandles();
+
+  renderElementPositions();
+}
+
+/* ---------------------------------------------------------------------
+   GRID BOUNDARY DRAG — a thin invisible strip sits over each internal
+   column/row gutter (not the outer margins, which have their own
+   number fields); dragging one redistributes width/height between the
+   two neighboring tracks only, converting the pixel movement back into
+   their colRatios/rowRatios so the rest of the grid — and the mouse —
+   never jumps. Only the SVG guides + the handles' own positions are
+   touched during the drag itself (never the full renderStage/
+   renderGridHandles pair), so the handle being dragged is never torn
+   out from under the gesture — the same rule as element drag/resize.
+--------------------------------------------------------------------- */
+function renderGridHandles(){
+  const layer = document.getElementById('grid-handles');
+  layer.innerHTML = '';
+  const g = state.grid;
+  if(g.locked || g.mode === 'diagonal') return; // no draggable boundaries while locked, or in diagonal mode (no columns/rows to drag)
+  const geo = computeGrid();
+  const HIT = 10; // screen px hit-target width/height
+
+  for(let i=0;i<geo.colBounds.length-1;i++){
+    const midX = (geo.colBounds[i].end + geo.colBounds[i+1].start) / 2;
+    const h = document.createElement('div');
+    h.className = 'grid-handle grid-handle-col';
+    h.title = 'Drag to resize these two columns';
+    h.style.left = (midX*pageScale - HIT/2) + 'px';
+    h.style.top = (g.marginTop*pageScale) + 'px';
+    h.style.width = HIT + 'px';
+    h.style.height = ((state.canvasH - g.marginBottom - g.marginTop)*pageScale) + 'px';
+    h.addEventListener('pointerdown', (e) => startColumnBoundaryDrag(e, i, h));
+    layer.appendChild(h);
+  }
+  for(let i=0;i<geo.rowBounds.length-1;i++){
+    const midY = (geo.rowBounds[i].end + geo.rowBounds[i+1].start) / 2;
+    const h = document.createElement('div');
+    h.className = 'grid-handle grid-handle-row';
+    h.title = 'Drag to resize these two rows';
+    h.style.top = (midY*pageScale - HIT/2) + 'px';
+    h.style.left = (g.marginLeft*pageScale) + 'px';
+    h.style.height = HIT + 'px';
+    h.style.width = ((state.canvasW - g.marginRight - g.marginLeft)*pageScale) + 'px';
+    h.addEventListener('pointerdown', (e) => startRowBoundaryDrag(e, i, h));
+    layer.appendChild(h);
+  }
+}
+
+// Repositions existing handle DOM nodes from fresh grid geometry without
+// recreating them — safe to call on every drag tick.
+function positionGridHandles(){
+  const geo = computeGrid();
+  const HIT = 10;
+  document.querySelectorAll('.grid-handle-col').forEach((h, i) => {
+    const midX = (geo.colBounds[i].end + geo.colBounds[i+1].start) / 2;
+    h.style.left = (midX*pageScale - HIT/2) + 'px';
+  });
+  document.querySelectorAll('.grid-handle-row').forEach((h, i) => {
+    const midY = (geo.rowBounds[i].end + geo.rowBounds[i+1].start) / 2;
+    h.style.top = (midY*pageScale - HIT/2) + 'px';
+  });
+}
+
+function startColumnBoundaryDrag(e, index, handleEl){
+  e.stopPropagation();
+  const g = state.grid;
+  const geo = computeGrid();
+  const leftCol = geo.colBounds[index], rightCol = geo.colBounds[index+1];
+  const combinedRatio = g.colRatios[index] + g.colRatios[index+1];
+  const combinedWidth = (leftCol.end - leftCol.start) + (rightCol.end - rightCol.start);
+  const leftStart = leftCol.start, rightEnd = rightCol.end, origBoundary = leftCol.end;
+  const MIN = Math.min(10, combinedWidth * 0.05);
+  const startX = e.clientX;
+  let moved = false;
+  handleEl.classList.add('dragging');
+
+  function onMove(ev){
+    if(!moved) pushHistory();
+    moved = true;
+    const dx = (ev.clientX - startX) / pageScale;
+    const newBoundary = clamp(origBoundary + dx, leftStart + MIN, rightEnd - g.gutterX - MIN);
+    const newWidthLeft = newBoundary - leftStart;
+    const newRatioLeft = combinedRatio * (newWidthLeft / combinedWidth);
+    g.colRatios[index] = round4(newRatioLeft);
+    g.colRatios[index+1] = round4(combinedRatio - newRatioLeft);
+    buildGridOverlaySVG(document.getElementById('grid-overlay'));
+    positionGridHandles();
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    handleEl.classList.remove('dragging');
+    if(moved) renderPropsPanel();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function startRowBoundaryDrag(e, index, handleEl){
+  e.stopPropagation();
+  const g = state.grid;
+  const geo = computeGrid();
+  const topRow = geo.rowBounds[index], botRow = geo.rowBounds[index+1];
+  const combinedRatio = g.rowRatios[index] + g.rowRatios[index+1];
+  const combinedHeight = (topRow.end - topRow.start) + (botRow.end - botRow.start);
+  const topStart = topRow.start, botEnd = botRow.end, origBoundary = topRow.end;
+  const MIN = Math.min(10, combinedHeight * 0.05);
+  const startY = e.clientY;
+  let moved = false;
+  handleEl.classList.add('dragging');
+
+  function onMove(ev){
+    if(!moved) pushHistory();
+    moved = true;
+    const dy = (ev.clientY - startY) / pageScale;
+    const newBoundary = clamp(origBoundary + dy, topStart + MIN, botEnd - g.gutterY - MIN);
+    const newHeightTop = newBoundary - topStart;
+    const newRatioTop = combinedRatio * (newHeightTop / combinedHeight);
+    g.rowRatios[index] = round4(newRatioTop);
+    g.rowRatios[index+1] = round4(combinedRatio - newRatioTop);
+    buildGridOverlaySVG(document.getElementById('grid-overlay'));
+    positionGridHandles();
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    handleEl.classList.remove('dragging');
+    if(moved) renderPropsPanel();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function buildGridOverlaySVG(svg){
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  const g = state.grid;
+  const geo = computeGrid();
+  const w = state.canvasW, h = state.canvasH;
+
+  // Grid/margin/baseline guides are UI chrome, not artwork — they should
+  // always read as a crisp ~1 screen-pixel line no matter how far the
+  // page preview is zoomed out (same convention as Figma/InDesign
+  // guides). vector-effect="non-scaling-stroke" keeps stroke-width in
+  // real screen pixels even though x/y coordinates stay in canvas units
+  // (the viewBox does the position scaling, the stroke opts out of it).
+  function line(x1,y1,x2,y2,color,width,dash){
+    const el = document.createElementNS(SVGNS, 'line');
+    el.setAttribute('x1', fx(x1)); el.setAttribute('y1', fx(y1));
+    el.setAttribute('x2', fx(x2)); el.setAttribute('y2', fx(y2));
+    el.setAttribute('stroke', color);
+    el.setAttribute('stroke-width', width);
+    el.setAttribute('vector-effect', 'non-scaling-stroke');
+    if(dash) el.setAttribute('stroke-dasharray', dash.join(' '));
+    svg.appendChild(el);
+  }
+
+  if(state.bleed > 0){
+    // The trim edge — where the page actually gets cut — drawn right at
+    // the SVG's own boundary; the bleed margin itself is just the extra
+    // white space #page shows outside this line (see renderStage()).
+    const rect = document.createElementNS(SVGNS, 'rect');
+    rect.setAttribute('x', 0); rect.setAttribute('y', 0);
+    rect.setAttribute('width', w); rect.setAttribute('height', h);
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', 'var(--bleed-line)');
+    rect.setAttribute('stroke-width', 1.5);
+    rect.setAttribute('stroke-dasharray', '2 4');
+    rect.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(rect);
+  }
+
+  if(g.showMargins){
+    line(g.marginLeft, 0, g.marginLeft, h, 'var(--margin-line)', 1, [4,3]);
+    line(w-g.marginRight, 0, w-g.marginRight, h, 'var(--margin-line)', 1, [4,3]);
+    line(0, g.marginTop, w, g.marginTop, 'var(--margin-line)', 1, [4,3]);
+    line(0, h-g.marginBottom, w, h-g.marginBottom, 'var(--margin-line)', 1, [4,3]);
+  }
+
+  if(g.showGrid && geo.mode === 'diagonal'){
+    const { diagCenter, diagAngle, diagCellSize, marginBox } = geo;
+    const diagLen = Math.sqrt(Math.pow(marginBox.x1-marginBox.x0,2) + Math.pow(marginBox.y1-marginBox.y0,2));
+    const half = diagLen; // generous overshoot; the clipPath below trims it to the margin box
+    const N = Math.min(80, Math.ceil(diagLen / (2*diagCellSize)) + 2);
+
+    const clipId = 'diag-clip';
+    const clipPath = document.createElementNS(SVGNS, 'clipPath'); clipPath.setAttribute('id', clipId);
+    const clipRect = document.createElementNS(SVGNS, 'rect');
+    clipRect.setAttribute('x', fx(marginBox.x0)); clipRect.setAttribute('y', fx(marginBox.y0));
+    clipRect.setAttribute('width', fx(marginBox.x1-marginBox.x0)); clipRect.setAttribute('height', fx(marginBox.y1-marginBox.y0));
+    clipPath.appendChild(clipRect); svg.appendChild(clipPath);
+
+    const rotGroup = document.createElementNS(SVGNS, 'g');
+    rotGroup.setAttribute('clip-path', `url(#${clipId})`);
+    rotGroup.setAttribute('transform', `rotate(${fx(diagAngle)} ${fx(diagCenter.x)} ${fx(diagCenter.y)})`);
+    function rotLine(x1,y1,x2,y2){
+      const el = document.createElementNS(SVGNS, 'line');
+      el.setAttribute('x1', fx(x1)); el.setAttribute('y1', fx(y1));
+      el.setAttribute('x2', fx(x2)); el.setAttribute('y2', fx(y2));
+      el.setAttribute('stroke', 'var(--grid-line)'); el.setAttribute('stroke-width', 0.75);
+      el.setAttribute('vector-effect', 'non-scaling-stroke');
+      rotGroup.appendChild(el);
+    }
+    for(let i=-N;i<=N;i++){
+      const lx = diagCenter.x + i*diagCellSize;
+      rotLine(lx, diagCenter.y-half, lx, diagCenter.y+half);
+      const ly = diagCenter.y + i*diagCellSize;
+      rotLine(diagCenter.x-half, ly, diagCenter.x+half, ly);
+    }
+    svg.appendChild(rotGroup);
+  } else if(g.showGrid){
+    geo.colBounds.forEach(c => {
+      line(c.start, g.marginTop, c.start, h-g.marginBottom, 'var(--grid-line)', 0.75);
+      line(c.end, g.marginTop, c.end, h-g.marginBottom, 'var(--grid-line)', 0.75);
+    });
+    geo.rowBounds.forEach(r => {
+      line(g.marginLeft, r.start, w-g.marginRight, r.start, 'var(--grid-line)', 0.75);
+      line(g.marginLeft, r.end, w-g.marginRight, r.end, 'var(--grid-line)', 0.75);
+    });
+  }
+
+  if(g.showBaseline && g.baselineStep > 0){
+    const stepCanvas = pxFromRef(g.baselineStep);
+    for(let y = g.marginTop; y <= h-g.marginBottom+0.01; y += stepCanvas){
+      line(g.marginLeft, y, w-g.marginRight, y, 'var(--baseline-line)', 0.5);
+    }
+  }
+
+  svg.style.setProperty('--grid-line-resolved','1');
+}
+
+// Rotation is applied as a plain CSS transform around the box's own
+// center (the default transform-origin), on top of the normal
+// left/top/width/height layout — so translation (drag) stays completely
+// unaffected by rotation, and only resizing needs rotation-aware math
+// (see startResize).
+function applyBoxTransform(box, el){
+  box.style.transform = el.rotation ? `rotate(${el.rotation}deg)` : '';
+}
+
+function renderElementPositions(){
+  state.elements.forEach(el => {
+    const box = document.getElementById('box-' + el.id);
+    if(!box) return;
+    box.style.left = (el.x * pageScale) + 'px';
+    box.style.top = (el.y * pageScale) + 'px';
+    box.style.width = (el.w * pageScale) + 'px';
+    box.style.height = (el.h * pageScale) + 'px';
+    applyBoxTransform(box, el);
+  });
+}
+
+/* ---------------------------------------------------------------------
+   ELEMENTS LAYER (DOM) — rebuilt on structural changes (add/remove/
+   select/reorder). Position/size updates during drag or resize are
+   applied directly to style.left/top/width/height (see startDrag /
+   startResize) instead of going through this rebuild, so an active
+   pointer-drag never gets its own DOM element torn out from under it.
+--------------------------------------------------------------------- */
+function renderElements(){
+  const layer = document.getElementById('elements-layer');
+  layer.innerHTML = '';
+  state.elements.forEach(el => {
+    if(el.visible === false) return;
+    const box = document.createElement('div');
+    box.className = 'el-box' + (el.id === state.selectedId ? ' selected' : '');
+    box.id = 'box-' + el.id;
+    box.style.left = (el.x * pageScale) + 'px';
+    box.style.top = (el.y * pageScale) + 'px';
+    box.style.width = (el.w * pageScale) + 'px';
+    box.style.height = (el.h * pageScale) + 'px';
+    applyBoxTransform(box, el);
+
+    if(el.type === 'image'){
+      if(el.src){
+        // .el-box itself can't clip (its resize handles are deliberately
+        // positioned outside its own edges), so the zoom/pan transform
+        // needs its own overflow:hidden viewport — otherwise a zoomed-in
+        // image visually spills past its frame instead of being cropped
+        // to it, even though export already clips correctly.
+        const clipWrap = document.createElement('div');
+        clipWrap.className = 'el-clip';
+        const img = document.createElement('img');
+        img.src = el.src;
+        applyImageStyle(img, el);
+        clipWrap.appendChild(img);
+        box.appendChild(clipWrap);
+        box.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleCropMode(el, box); });
+      } else {
+        box.style.background = 'repeating-linear-gradient(45deg, rgba(128,128,128,0.15), rgba(128,128,128,0.15) 8px, rgba(128,128,128,0.05) 8px, rgba(128,128,128,0.05) 16px)';
+        box.style.display = 'flex'; box.style.alignItems = 'center'; box.style.justifyContent = 'center';
+        box.style.color = '#888'; box.style.fontSize = '11px';
+        box.textContent = 'Empty image — double-click to upload';
+        box.addEventListener('dblclick', (e) => { e.stopPropagation(); pushHistory(); triggerImageUpload(el.id); });
+      }
+    } else if(el.type === 'text'){
+      renderTextContent(box, el);
+      // Single click/drag moves the block (handled by the box's own
+      // pointerdown below); double-click enters edit mode, matching the
+      // usual "select vs. edit" convention in design tools. While
+      // editing, pointerdown on the text itself is left alone so the
+      // browser can place the caret / select text instead of starting
+      // a drag — see enterTextEditMode().
+      box.addEventListener('dblclick', (e) => { e.stopPropagation(); enterTextEditMode(el, box); });
+    }
+
+    box.addEventListener('pointerdown', (e) => onElementPointerDown(e, el));
+    if(el.id === state.selectedId){
+      ['nw','n','ne','w','e','sw','s','se'].forEach(dir => {
+        const h = document.createElement('div');
+        h.className = 'el-handle ' + dir;
+        h.addEventListener('pointerdown', (e) => { e.stopPropagation(); startResize(e, el, dir); });
+        box.appendChild(h);
+      });
+    }
+
+    layer.appendChild(box);
+  });
+
+  // Auto-fit needs real layout (clientWidth/Height) to measure against,
+  // so it runs in a second pass once every box is actually in the DOM —
+  // doing it inline above would measure a box that isn't laid out yet.
+  state.elements.forEach(el => {
+    if(el.type === 'text' && el.autoFit && el.visible !== false){
+      const box = document.getElementById('box-' + el.id);
+      if(box) autofitText(el, box);
+    }
+  });
+}
+
+function applyTextStyle(txt, el){
+  ensureGoogleFont(el.googleFont);
+  txt.style.fontFamily = fontStackFor(el);
+  txt.style.fontSize = (el.fontSize * pageScale) + 'px';
+  txt.style.lineHeight = el.lineHeight;
+  txt.style.letterSpacing = (el.letterSpacing * pageScale) + 'px';
+  txt.style.fontWeight = el.weight;
+  txt.style.fontStyle = el.italic ? 'italic' : 'normal';
+  txt.style.textAlign = el.align;
+  txt.style.color = el.color;
+}
+
+// object-fit:cover sizes the image to exactly cover the FRAME as
+// drawn — i.e. at zero rotation. Rotate that already-tightly-fitted
+// image and its own edges pull away from the frame's corners (a square
+// exactly inscribed in a square, spun 45°, no longer reaches the
+// corners), leaving gaps — so the crop looked "stuck" at whatever
+// rotation it was set up for. The fix: scale up by exactly the extra
+// amount a WxH box needs to stay fully covered once rotated by
+// `angleDeg` — the classic rotated-rectangle bounding-box ratio — so
+// coverage is automatic and always the *minimum* necessary, which is
+// what keeps the rest of the image reachable via pan/zoom instead of
+// forcing an arbitrary extra crop.
+function rotationCoverScale(w, h, angleDeg){
+  if(!angleDeg || w <= 0 || h <= 0) return 1;
+  const rad = Math.abs(angleDeg % 180) * Math.PI/180;
+  const c = Math.abs(Math.cos(rad)), s = Math.abs(Math.sin(rad));
+  const reqW = w*c + h*s, reqH = w*s + h*c;
+  return Math.max(reqW/w, reqH/h);
+}
+
+// object-fit alone can crop (pan via object-position) but can't zoom
+// past the frame's own "cover" size. Layering scale()+rotate() on top,
+// anchored at the same point object-position already crops around,
+// gives a real pan/zoom/rotate tool: panX/panY choose what's centered,
+// zoom magnifies and imgRotation spins the PHOTO around that same
+// point — the frame (el.rotation, the .el-box itself) never moves, only
+// what's inside the crop does, same as Figma's "rotate an image fill"
+// vs. rotating the shape holding it.
+function applyImageStyle(img, el){
+  img.style.objectFit = el.fit;
+  img.style.objectPosition = el.panX + '% ' + el.panY + '%';
+  img.style.transformOrigin = el.panX + '% ' + el.panY + '%';
+  const coverScale = rotationCoverScale(el.w, el.h, el.imgRotation || 0);
+  img.style.transform = 'rotate(' + (el.imgRotation || 0) + 'deg) scale(' + ((el.zoom || 1) * coverScale) + ')';
+}
+
+/* ---------------------------------------------------------------------
+   TEXT CONTENT — the box itself is a flex column so vertical align is
+   just justify-content. "Justify" additionally splits the stored
+   content on '\n' into one flex child per line/paragraph, so
+   space-between actually has multiple children to spread from the top
+   edge to the bottom edge instead of collapsing to a single block
+   (which is what top/middle/bottom, and space-between with only one
+   child, all render as anyway).
+--------------------------------------------------------------------- */
+const VALIGN_CSS = { top:'flex-start', middle:'center', bottom:'flex-end', justify:'space-between' };
+// Same reasoning as .el-clip for images: .el-box itself can't take
+// overflow:hidden (its resize handles are deliberately positioned
+// outside its own edges), so text needs its own clipping viewport —
+// otherwise text longer than the box just grows past its edges
+// instead of being cropped to the frame.
+function getTextClip(box){
+  let clip = box.querySelector('.el-text-clip');
+  if(!clip){
+    clip = document.createElement('div');
+    clip.className = 'el-text-clip';
+    box.appendChild(clip);
+  }
+  return clip;
+}
+function renderTextContent(box, el){
+  const clip = getTextClip(box);
+  clip.classList.remove('editing');
+  clip.innerHTML = '';
+  clip.style.justifyContent = VALIGN_CSS[el.vAlign] || 'flex-start';
+
+  if(el.vAlign === 'justify'){
+    const lines = (el.content || '').split('\n');
+    lines.forEach(lineText => {
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'el-text el-line';
+      lineDiv.textContent = lineText.length ? lineText : ' '; // keep empty lines visitable/measurable
+      applyTextStyle(lineDiv, el);
+      clip.appendChild(lineDiv);
+    });
+  } else {
+    const txt = document.createElement('div');
+    txt.className = 'el-text';
+    txt.contentEditable = 'false';
+    txt.spellcheck = false;
+    txt.textContent = el.content;
+    applyTextStyle(txt, el);
+    clip.appendChild(txt);
+  }
+}
+
+// Binary-searches the largest font size (in on-screen px) that still
+// keeps the text within the box, then converts it back to Grid
+// Studio's reference-px convention so state stays scale-independent —
+// same reasoning as strokeUnits() in Phi Guide: a size baked in at the
+// current zoom/pageScale would mean something different once that
+// scale changes. Grows AND shrinks (not shrink-only), so a short line
+// in a big box gets genuinely large, not left at its authored size.
+function autofitText(el, box){
+  if(el.vAlign === 'justify') return; // see the "Auto-fit" hint in the panel
+  const txt = box.querySelector('.el-text');
+  if(!txt) return;
+  const targetW = box.clientWidth, targetH = box.clientHeight;
+  if(targetW <= 0 || targetH <= 0) return;
+  let lo = 4, hi = 400;
+  function fits(sizePx){
+    txt.style.fontSize = sizePx + 'px';
+    return txt.scrollHeight <= targetH + 0.5 && txt.scrollWidth <= targetW + 0.5;
+  }
+  for(let i=0;i<16;i++){
+    const mid = (lo+hi)/2;
+    if(fits(mid)) lo = mid; else hi = mid;
+  }
+  txt.style.fontSize = lo + 'px';
+  el.fontSize = round4(lo / pageScale);
+}
+
+// Refresh only the visual styling of existing element boxes (font size,
+// color, image fit...) without rebuilding the DOM — used for property
+// edits so typing/dragging in the panel never fights a live interaction.
+// Text is the one exception: it always rebuilds its (small) text-node
+// subtree via renderTextContent, since "justify" mode needs a different
+// number of child nodes depending on line count — but that never fights
+// a live gesture because nothing keeps pointer capture or focus on
+// those nodes outside of enterTextEditMode, which has its own path.
+function refreshElementVisuals(){
+  state.elements.forEach(el => {
+    const box = document.getElementById('box-' + el.id);
+    if(!box) return;
+    if(el.type === 'text'){
+      renderTextContent(box, el);
+      if(el.autoFit) autofitText(el, box);
+    } else if(el.type === 'image'){
+      const img = box.querySelector('img');
+      if(img) applyImageStyle(img, el);
+    }
+  });
+}
+
+/* ---------------------------------------------------------------------
+   TEXT EDIT MODE — a text block is normally just a draggable/resizable
+   box (like an image); double-click swaps it into a single editable
+   caret (merging justified lines back into one block first) so typing
+   doesn't fight the drag gesture or the line-splitting, then
+   blur/Escape commits the content and rebuilds the display.
+--------------------------------------------------------------------- */
+function enterTextEditMode(el, box){
+  if(box.querySelector('.el-text.editing')) return;
+  pushHistory();
+  const clip = getTextClip(box);
+  clip.innerHTML = '';
+  clip.classList.add('editing'); // lets typed text overflow visibly instead of clipping mid-edit
+  clip.style.justifyContent = 'flex-start';
+  const txt = document.createElement('div');
+  txt.className = 'el-text editing';
+  txt.contentEditable = 'true';
+  txt.spellcheck = false;
+  txt.textContent = el.content;
+  applyTextStyle(txt, el);
+  clip.appendChild(txt);
+
+  function stopDrag(e){ e.stopPropagation(); }
+  txt.addEventListener('pointerdown', stopDrag);
+  const range = document.createRange();
+  range.selectNodeContents(txt);
+  const sel = window.getSelection();
+  sel.removeAllRanges(); sel.addRange(range);
+  txt.focus();
+  function finish(){
+    txt.removeEventListener('pointerdown', stopDrag);
+    txt.removeEventListener('blur', finish);
+    // innerText mirrors the rendered line breaks (paragraphs the
+    // browser inserted on Enter) — textContent would just concatenate
+    // them with no separator and silently lose every line break.
+    let content = txt.innerText !== undefined ? txt.innerText : txt.textContent;
+    el.content = (content || '').replace(/\n+$/, '');
+    renderTextContent(box, el);
+    if(el.autoFit) autofitText(el, box);
+  }
+  txt.addEventListener('blur', finish);
+  txt.__exitEdit = finish;
+}
+
+/* ---------------------------------------------------------------------
+   IMAGE PAN / ZOOM ("crop mode") — double-click an image to enter it:
+   dragging inside the frame pans (panX/panY), the scroll wheel zooms
+   (zoom), and Escape or clicking elsewhere exits back to normal
+   select/drag/resize behavior.
+--------------------------------------------------------------------- */
+let activeCropEl = null;
+function toggleCropMode(el, box){
+  if(activeCropEl === el.id){ exitCropMode(box); return; }
+  if(activeCropEl){ const prevBox = document.getElementById('box-' + activeCropEl); if(prevBox) exitCropMode(prevBox); }
+  pushHistory();
+  activeCropEl = el.id;
+  box.classList.add('crop-mode');
+  const hint = document.createElement('div');
+  hint.className = 'crop-hint';
+  hint.textContent = 'Drag to pan · Scroll to zoom · Shift+scroll to rotate · double-click to finish';
+  box.appendChild(hint);
+
+  function onWheel(e){
+    e.preventDefault();
+    if(e.shiftKey){
+      const delta = e.deltaY < 0 ? -5 : 5;
+      el.imgRotation = clamp(round4((el.imgRotation || 0) + delta), -180, 180);
+    } else {
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      el.zoom = clamp(round4((el.zoom || 1) + delta), 1, 5);
+    }
+    const img = box.querySelector('img'); if(img) applyImageStyle(img, el);
+    if(state.selectedId === el.id) refreshPanZoomFields();
+  }
+  function onPanDown(e){
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const origPanX = el.panX, origPanY = el.panY;
+    const rect = box.getBoundingClientRect();
+    const zoom = el.zoom || 1;
+    function onMove(ev){
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      // Dragging the image should feel like dragging the *picture*, so
+      // moving the mouse right reveals more of what's to the left of the
+      // current focal point — panX decreases. Divide by zoom because at
+      // higher zoom the same screen-pixel drag covers a smaller % of
+      // the underlying (magnified) image.
+      el.panX = clamp(round4(origPanX - (dx/rect.width)*100/zoom), 0, 100);
+      el.panY = clamp(round4(origPanY - (dy/rect.height)*100/zoom), 0, 100);
+      const img = box.querySelector('img'); if(img) applyImageStyle(img, el);
+    }
+    function onUp(){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if(state.selectedId === el.id) refreshPanZoomFields();
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+  box.addEventListener('wheel', onWheel, { passive:false });
+  box.addEventListener('pointerdown', onPanDown);
+  box.__cropWheel = onWheel;
+  box.__cropDown = onPanDown;
+
+  function onDblClickExit(e){ e.stopPropagation(); exitCropMode(box); }
+  box.__cropExitDbl = onDblClickExit;
+  box.addEventListener('dblclick', onDblClickExit);
+}
+function exitCropMode(box){
+  box.classList.remove('crop-mode');
+  const hint = box.querySelector('.crop-hint'); if(hint) hint.remove();
+  if(box.__cropWheel) box.removeEventListener('wheel', box.__cropWheel);
+  if(box.__cropDown) box.removeEventListener('pointerdown', box.__cropDown);
+  if(box.__cropExitDbl) box.removeEventListener('dblclick', box.__cropExitDbl);
+  activeCropEl = null;
+}
+// Keep the properties-panel Pan/Zoom number fields in sync while
+// dragging/scrolling inside crop mode, without rebuilding the panel.
+function refreshPanZoomFields(){
+  const el = getElement(state.selectedId);
+  if(!el) return;
+  const panXInput = document.getElementById('panx-input');
+  const panYInput = document.getElementById('pany-input');
+  const zoomInput = document.getElementById('zoom-input');
+  const imgRotInput = document.getElementById('imgrot-input');
+  if(panXInput) panXInput.value = round4(el.panX);
+  if(panYInput) panYInput.value = round4(el.panY);
+  if(zoomInput) zoomInput.value = round4(el.zoom);
+  if(imgRotInput){
+    imgRotInput.value = round4(el.imgRotation || 0);
+    // imgrot-input lives inside a sliderCombo — also move the thumb,
+    // not just the number, when rotation changes from outside the
+    // panel (Shift+scroll in crop mode).
+    const wrap = imgRotInput.closest('.slider-row');
+    if(wrap && wrap.setSliderValue) wrap.setSliderValue(el.imgRotation || 0);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   DRAG / RESIZE — direct style mutation, state written continuously,
+   full DOM rebuild deferred to pointerup.
+--------------------------------------------------------------------- */
+const SNAP_THRESHOLD_SCREEN_PX = 8;
+
+function onElementPointerDown(e, el){
+  if(e.target.classList && e.target.classList.contains('el-handle')) return;
+  const box = document.getElementById('box-' + el.id);
+  if(box && box.classList.contains('crop-mode')) return; // the pan/zoom listener owns pointer input while cropping
+  e.stopPropagation();
+  selectElement(el.id, true);
+  startDrag(e, el);
+}
+
+function startDrag(e, el){
+  const box = document.getElementById('box-' + el.id);
+  const startX = e.clientX, startY = e.clientY;
+  const origX = el.x, origY = el.y;
+  const geo = computeGrid();
+  const thresholdX = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  const thresholdY = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  let moved = false;
+
+  function onMove(ev){
+    if(!moved) pushHistory();
+    moved = true;
+    const dx = (ev.clientX - startX) / pageScale;
+    const dy = (ev.clientY - startY) / pageScale;
+    let nx = origX + dx, ny = origY + dy;
+    if(geo.mode === 'diagonal'){
+      // Snap the element's center to the diamond lattice: each of the
+      // two rotated line families is checked independently, so the
+      // element can slide along a single guide line (not just jump
+      // between full intersections) and still locks onto a crossing
+      // when it's near both at once.
+      const centerX = nx + el.w/2, centerY = ny + el.h/2;
+      const snapped = snapToDiagLines(centerX, centerY, geo, Math.max(thresholdX, thresholdY) * 1.4);
+      if(snapped){ nx = snapped.x - el.w/2; ny = snapped.y - el.h/2; }
+    } else {
+      nx = snapValue(nx, geo.snapX, thresholdX);
+      ny = snapValue(ny, geo.snapY, thresholdY);
+    }
+    nx = clamp(nx, -state.bleed, state.canvasW + state.bleed - el.w);
+    ny = clamp(ny, -state.bleed, state.canvasH + state.bleed - el.h);
+    el.x = nx; el.y = ny;
+    box.style.left = (nx * pageScale) + 'px';
+    box.style.top = (ny * pageScale) + 'px';
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if(moved) renderPropsPanel();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function startResize(e, el, dir){
+  const box = document.getElementById('box-' + el.id);
+  const startX = e.clientX, startY = e.clientY;
+  const orig = { x: el.x, y: el.y, w: el.w, h: el.h };
+  const geo = computeGrid();
+  const thresholdX = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  const thresholdY = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  const MIN = 10;
+  const rotRad = (el.rotation || 0) * Math.PI / 180;
+  let resized = false;
+
+  function onMove(ev){
+    if(!resized) pushHistory();
+    resized = true;
+    const dx = (ev.clientX - startX) / pageScale;
+    const dy = (ev.clientY - startY) / pageScale;
+    let x, y, w, h;
+
+    if(el.rotation){
+      // Handles rotate with the box, so a screen-space mouse delta has
+      // to be expressed in the box's own (rotated) local axes before it
+      // means "wider" or "taller" — same rotate-by-minus-angle trick as
+      // any 2D editor's rotated-resize.
+      const oldCx = orig.x + orig.w/2, oldCy = orig.y + orig.h/2;
+      let localDx = dx*Math.cos(rotRad) + dy*Math.sin(rotRad);
+      let localDy = -dx*Math.sin(rotRad) + dy*Math.cos(rotRad);
+      const threshold = Math.max(thresholdX, thresholdY) * 1.4;
+
+      if(geo.mode === 'diagonal' && dir.length === 2){
+        // CORNER handle: snap the dragged corner's own world position
+        // to the lattice (one line, or a full intersection when close
+        // to both) — the opposite corner (the anchor) never moves.
+        const draggedFrac = CORNER_FRACS[dir];
+        const anchorFrac = { x: -draggedFrac.x, y: -draggedFrac.y };
+        const anchorOff = rotateVec(anchorFrac.x*orig.w, anchorFrac.y*orig.h, rotRad);
+        const anchorWorld = { x: oldCx+anchorOff.x, y: oldCy+anchorOff.y };
+        const rawDraggedLocal = { x: draggedFrac.x*orig.w + localDx, y: draggedFrac.y*orig.h + localDy };
+        const rawDraggedOff = rotateVec(rawDraggedLocal.x, rawDraggedLocal.y, rotRad);
+        const rawDraggedWorld = { x: oldCx+rawDraggedOff.x, y: oldCy+rawDraggedOff.y };
+        const snapped = snapToDiagLines(rawDraggedWorld.x, rawDraggedWorld.y, geo, threshold) || rawDraggedWorld;
+        const diffWorld = { x: snapped.x-anchorWorld.x, y: snapped.y-anchorWorld.y };
+        const diffLocal = rotateVec(diffWorld.x, diffWorld.y, -rotRad);
+        w = Math.max(MIN, Math.abs(diffLocal.x));
+        h = Math.max(MIN, Math.abs(diffLocal.y));
+        const newCenterOff = rotateVec(anchorFrac.x*w, anchorFrac.y*h, rotRad);
+        x = (anchorWorld.x - newCenterOff.x) - w/2;
+        y = (anchorWorld.y - newCenterOff.y) - h/2;
+      } else {
+        if(geo.mode === 'diagonal' && dir.length === 1){
+          // EDGE handle: only one world point moves, along one axis —
+          // project it onto the grid instead of full 2D point-snapping.
+          const edgeIsX = (dir === 'e' || dir === 'w');
+          const edgeBaseFrac = (dir === 'e' || dir === 's') ? 0.5 : -0.5;
+          const rawLocalCoord = edgeIsX ? edgeBaseFrac*orig.w + localDx : edgeBaseFrac*orig.h + localDy;
+          const rawLocalPoint = edgeIsX ? { x: rawLocalCoord, y: 0 } : { x: 0, y: rawLocalCoord };
+          const rawOff = rotateVec(rawLocalPoint.x, rawLocalPoint.y, rotRad);
+          const rawWorld = { x: oldCx+rawOff.x, y: oldCy+rawOff.y };
+          const moveDirWorld = edgeIsX ? rotateVec(1,0,rotRad) : rotateVec(0,1,rotRad);
+          const shift = snapEdgeProjected(rawWorld, moveDirWorld, geo, threshold);
+          if(shift !== null){ if(edgeIsX) localDx += shift; else localDy += shift; }
+        }
+        w = orig.w; h = orig.h;
+        let offX = 0, offY = 0;
+        if(dir.includes('e')){ w = Math.max(MIN, orig.w + localDx); offX = (w - orig.w)/2; }
+        if(dir.includes('w')){ w = Math.max(MIN, orig.w - localDx); offX = -(w - orig.w)/2; }
+        if(dir.includes('s')){ h = Math.max(MIN, orig.h + localDy); offY = (h - orig.h)/2; }
+        if(dir.includes('n')){ h = Math.max(MIN, orig.h - localDy); offY = -(h - orig.h)/2; }
+        // offX/offY is the local-frame shift of the box's center; rotate
+        // it back into canvas axes to know how the (unrotated) x/y — the
+        // top-left of the un-rotated frame CSS rotates around its own
+        // center — needs to move to keep the untouched edge visually put.
+        const worldOff = rotateVec(offX, offY, rotRad);
+        x = (oldCx + worldOff.x) - w/2; y = (oldCy + worldOff.y) - h/2;
+      }
+    } else {
+      ({ x, y, w, h } = orig);
+      if(dir.includes('e')){ let right = snapValue(orig.x+orig.w+dx, geo.snapX, thresholdX); w = Math.max(MIN, right - x); }
+      if(dir.includes('s')){ let bottom = snapValue(orig.y+orig.h+dy, geo.snapY, thresholdY); h = Math.max(MIN, bottom - y); }
+      if(dir.includes('w')){ let left = snapValue(orig.x+dx, geo.snapX, thresholdX); w = Math.max(MIN, (orig.x+orig.w) - left); x = left; }
+      if(dir.includes('n')){ let top = snapValue(orig.y+dy, geo.snapY, thresholdY); h = Math.max(MIN, (orig.y+orig.h) - top); y = top; }
+      x = clamp(x, -state.bleed, state.canvasW + state.bleed - MIN);
+      y = clamp(y, -state.bleed, state.canvasH + state.bleed - MIN);
+      w = clamp(w, MIN, state.canvasW + state.bleed - x);
+      h = clamp(h, MIN, state.canvasH + state.bleed - y);
+    }
+
+    el.x = x; el.y = y; el.w = w; el.h = h;
+    box.style.left = (x*pageScale)+'px'; box.style.top = (y*pageScale)+'px';
+    box.style.width = (w*pageScale)+'px'; box.style.height = (h*pageScale)+'px';
+    if(el.type === 'text'){
+      const txt = box.querySelector('.el-text');
+      if(txt){ applyTextStyle(txt, el); if(el.autoFit && el.vAlign !== 'justify') autofitText(el, box); }
+    }
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    renderPropsPanel();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+/* ---------------------------------------------------------------------
+   SELECTION
+--------------------------------------------------------------------- */
+function selectElement(id, skipFullRender){
+  state.selectedId = id;
+  if(skipFullRender){
+    document.querySelectorAll('.el-box').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.el-handle').forEach(h => h.remove());
+    if(id){
+      const box = document.getElementById('box-' + id);
+      if(box){
+        box.classList.add('selected');
+        const el = getElement(id);
+        ['nw','n','ne','w','e','sw','s','se'].forEach(dir => {
+          const h = document.createElement('div');
+          h.className = 'el-handle ' + dir;
+          h.addEventListener('pointerdown', (e) => { e.stopPropagation(); startResize(e, el, dir); });
+          box.appendChild(h);
+        });
+      }
+    }
+    renderLayersList();
+    renderPropsPanel();
+  } else {
+    renderAll();
+  }
+}
+
+/* ---------------------------------------------------------------------
+   LAYERS LIST (left rail)
+--------------------------------------------------------------------- */
+function renderLayersList(){
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+  if(state.elements.length === 0){
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:24px 10px; color:var(--text-dim); font-size:11.5px; line-height:1.6; text-align:center;';
+    empty.textContent = 'No elements yet. Add an image or a text block below.';
+    list.appendChild(empty);
+    return;
+  }
+  [...state.elements].slice().reverse().forEach(el => {
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (el.id===state.selectedId?' selected':'') + (el.visible===false?' disabled':'');
+    row.dataset.elId = el.id;
+
+    const grip = document.createElement('div');
+    grip.className = 'layer-grip';
+    grip.title = 'Drag to reorder';
+    grip.innerHTML = gripSVG();
+    grip.addEventListener('pointerdown', (e) => startLayerDrag(e, el.id, row));
+
+    const icon = document.createElement('div');
+    icon.className = 'layer-icon';
+    icon.innerHTML = el.type === 'image' ? imageIconSVG() : textIconSVG();
+
+    const name = document.createElement('div');
+    name.className = 'layer-name';
+    name.innerHTML = escapeHtml(el.name || (el.type==='image'?'Image':'Text')) + `<span class="layer-name-sub">${el.type === 'image' ? 'Image' : 'Text'}</span>`;
+
+    const vis = document.createElement('div');
+    vis.className = 'layer-vis-toggle';
+    vis.title = el.visible === false ? 'Show' : 'Hide';
+    vis.innerHTML = el.visible === false ? eyeClosedSVG() : eyeOpenSVG();
+    vis.addEventListener('click', (e) => { e.stopPropagation(); el.visible = el.visible === false ? true : false; renderAll(); });
+
+    row.appendChild(grip); row.appendChild(icon); row.appendChild(name); row.appendChild(vis);
+    row.addEventListener('click', () => selectElement(el.id));
+    list.appendChild(row);
+  });
+}
+function gripSVG(){ return `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.3"/><circle cx="8" cy="2" r="1.3"/><circle cx="2" cy="7" r="1.3"/><circle cx="8" cy="7" r="1.3"/><circle cx="2" cy="12" r="1.3"/><circle cx="8" cy="12" r="1.3"/></svg>`; }
+
+/* ---------------------------------------------------------------------
+   LAYER REORDER — drag the grip to move an element up/down the stack.
+   state.elements' own order IS the z-order (later = drawn on top), and
+   the layers list displays it reversed (top-of-list = last in the
+   array) — see the .reverse() above — so reordering the visible list
+   means reordering state.elements to match. Listeners live on
+   `document`, not on the grip itself via setPointerCapture, so rebuilding
+   the list mid-drag (cheap, gives live visual feedback) never drops the
+   gesture the way losing capture on a destroyed node would.
+--------------------------------------------------------------------- */
+function startLayerDrag(e, elId, row){
+  e.preventDefault(); e.stopPropagation();
+  const list = document.getElementById('layers-list');
+  let pushed = false;
+  row.classList.add('dragging');
+
+  function displayOrder(){ return [...state.elements].slice().reverse(); }
+
+  function onMove(ev){
+    const rows = [...list.querySelectorAll('.layer-row')];
+    if(rows.length < 2) return;
+    let targetIndex = rows.length - 1;
+    for(let i=0;i<rows.length;i++){
+      const r = rows[i].getBoundingClientRect();
+      if(ev.clientY < r.top + r.height/2){ targetIndex = i; break; }
+    }
+    const order = displayOrder();
+    const curIndex = order.findIndex(el => el.id === elId);
+    if(curIndex === -1 || curIndex === targetIndex) return;
+    if(!pushed){ pushHistory(); pushed = true; }
+    const [moved] = order.splice(curIndex, 1);
+    order.splice(targetIndex, 0, moved);
+    state.elements = order.slice().reverse();
+    renderLayersList();
+    renderElements();
+    const newRow = list.querySelector(`.layer-row[data-el-id="${elId}"]`);
+    if(newRow) newRow.classList.add('dragging');
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    const finalRow = list.querySelector(`.layer-row[data-el-id="${elId}"]`);
+    if(finalRow) finalRow.classList.remove('dragging');
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function eyeOpenSVG(){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`; }
+function eyeClosedSVG(){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.78 3.82M14.12 14.12a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`; }
+function imageIconSVG(){ return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`; }
+function textIconSVG(){ return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`; }
+
+/* ---------------------------------------------------------------------
+   PROPERTIES PANEL (right rail)
+--------------------------------------------------------------------- */
+function section(title){
+  const s = document.createElement('div'); s.className = 'props-section';
+  const h = document.createElement('h3'); h.textContent = title;
+  s.appendChild(h); return s;
+}
+function fieldRow(labelText, controlEl){
+  const row = document.createElement('div'); row.className = 'field-row';
+  const label = document.createElement('label'); label.textContent = labelText;
+  const ctrl = document.createElement('div'); ctrl.className = 'control'; ctrl.appendChild(controlEl);
+  row.appendChild(label); row.appendChild(ctrl); return row;
+}
+// Every numCombo/checkboxRow instance across the app (grid margins,
+// element position/size, font size, pan/zoom...) pushes one history
+// snapshot before applying its change — wiring undo generically here
+// instead of at each of the ~25 call sites.
+function numCombo(value, step, min, max, onChange){
+  const wrap = document.createElement('div'); wrap.className = 'num-combo';
+  const num = document.createElement('input');
+  num.type = 'number'; num.className = 'num-input'; num.value = round4(value);
+  num.step = step; if(min!==undefined) num.min = min; if(max!==undefined) num.max = max;
+  num.addEventListener('change', () => {
+    let v = parseFloat(num.value); if(isNaN(v)) v = value;
+    if(min!==undefined) v = Math.max(min, v); if(max!==undefined) v = Math.min(max, v);
+    num.value = round4(v); pushHistory(); onChange(v);
+  });
+  const stepper = document.createElement('div'); stepper.className = 'stepper';
+  const up = document.createElement('button'); up.type='button'; up.innerHTML='&#9650;';
+  up.addEventListener('click', () => { let v = parseFloat(num.value)+step; if(max!==undefined) v=Math.min(max,v); num.value=round4(v); pushHistory(); onChange(v); });
+  const down = document.createElement('button'); down.type='button'; down.innerHTML='&#9660;';
+  down.addEventListener('click', () => { let v = parseFloat(num.value)-step; if(min!==undefined) v=Math.max(min,v); num.value=round4(v); pushHistory(); onChange(v); });
+  stepper.appendChild(up); stepper.appendChild(down);
+  wrap.appendChild(num); wrap.appendChild(stepper);
+  wrap.setNum = (v) => { num.value = round4(v); };
+  return wrap;
+}
+// A draggable slider paired with a number input that always stays in
+// sync — used where dragging to "feel out" a value (like an angle)
+// beats clicking a stepper, but typing an exact number must still work.
+// Pointer listeners are attached only for the duration of a drag
+// (pointerdown..pointerup), not kept on `document` permanently — every
+// property-panel rebuild creates fresh sliders, so a listener kept
+// around after mouseup would leak with every rebuild.
+function sliderCombo(min, max, step, value, onChange){
+  const wrap = document.createElement('div'); wrap.className = 'slider-row';
+
+  const track = document.createElement('div'); track.className = 'rslider-track';
+  const fill = document.createElement('div'); fill.className = 'rslider-fill';
+  const thumb = document.createElement('div'); thumb.className = 'rslider-thumb';
+  track.appendChild(fill); track.appendChild(thumb);
+  const slider = document.createElement('div'); slider.className = 'rslider';
+  slider.appendChild(track);
+
+  let current = value;
+  function render(){
+    const p = Math.min(1, Math.max(0, (current-min)/(max-min)));
+    fill.style.width = (p*100) + '%';
+    thumb.style.left = (p*100) + '%';
+  }
+  function valueFromClientX(clientX){
+    const rect = track.getBoundingClientRect();
+    let p = rect.width > 0 ? (clientX-rect.left)/rect.width : 0;
+    p = Math.min(1, Math.max(0, p));
+    let v = min + p*(max-min);
+    v = Math.round(v/step)*step;
+    return Math.min(max, Math.max(min, round4(v)));
+  }
+  function onMove(e){
+    const v = valueFromClientX(e.clientX);
+    if(v !== current){ current = v; render(); num.value = round4(v); onChange(v); }
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+  }
+  slider.addEventListener('pointerdown', (e) => {
+    pushHistory();
+    current = valueFromClientX(e.clientX);
+    render(); num.value = round4(current); onChange(current);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    e.preventDefault();
+  });
+  render();
+
+  const num = document.createElement('input');
+  num.type = 'number'; num.className = 'num-input'; num.value = round4(value);
+  num.min = min; num.max = max; num.step = step;
+  num.addEventListener('change', () => {
+    let v = parseFloat(num.value); if(isNaN(v)) v = value;
+    v = Math.min(max, Math.max(min, v));
+    num.value = round4(v);
+    pushHistory();
+    current = v; render();
+    onChange(v);
+  });
+
+  wrap.appendChild(slider); wrap.appendChild(num);
+  wrap.setSliderValue = (v) => { current = v; render(); num.value = round4(v); };
+  return wrap;
+}
+
+function checkboxRow(labelText, checked, onChange){
+  const row = document.createElement('div'); row.className = 'checkbox-row';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = checked;
+  const id = 'cb-' + Math.random().toString(36).slice(2,8);
+  cb.id = id;
+  const label = document.createElement('label'); label.htmlFor = id; label.textContent = labelText;
+  cb.addEventListener('change', () => { pushHistory(); onChange(cb.checked); });
+  row.appendChild(cb); row.appendChild(label);
+  row.addEventListener('click', (e) => { if(e.target !== cb){ cb.checked = !cb.checked; pushHistory(); onChange(cb.checked); } });
+  return row;
+}
+
+function renderPropsPanel(){
+  const body = document.getElementById('props-body');
+  const title = document.getElementById('props-title');
+  body.innerHTML = '';
+  const el = state.selectedId ? getElement(state.selectedId) : null;
+  if(!el){
+    title.textContent = 'GRID';
+    body.appendChild(buildGridSection());
+    return;
+  }
+  title.textContent = el.type.toUpperCase();
+  body.appendChild(buildElementCommonSection(el));
+  if(el.type === 'image') body.appendChild(buildImageSection(el));
+  if(el.type === 'text') body.appendChild(buildTextSection(el));
+  body.appendChild(buildDeleteSection(el));
+}
+
+// One small number input per column/row, editing its relative width
+// share directly (default 1 = equal, like today; 2 = twice the share
+// of a neighboring 1). This is what makes the asymmetric grids from
+// Grid Systems in Graphic Design possible — a grid isn't just a column
+// count any more, each track can carry its own weight.
+function buildRatioEditor(g, ratiosKey, countKey, onEdit){
+  g[ratiosKey] = syncRatios(g[ratiosKey], g[countKey]);
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;';
+  g[ratiosKey].forEach((val, i) => {
+    const cell = document.createElement('div');
+    cell.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:2px;';
+    const label = document.createElement('span');
+    label.textContent = i + 1;
+    label.style.cssText = 'font-size:9px; color:var(--text-dim);';
+    const input = document.createElement('input');
+    input.type = 'number'; input.min = '0.1'; input.step = '0.1'; input.value = round4(val);
+    input.className = 'num-input'; input.style.width = '42px';
+    input.addEventListener('change', () => {
+      let v = parseFloat(input.value); if(isNaN(v) || v <= 0) v = 1;
+      pushHistory();
+      g[ratiosKey][i] = v;
+      input.value = round4(v);
+      onEdit();
+    });
+    cell.appendChild(label); cell.appendChild(input);
+    wrap.appendChild(cell);
+  });
+  return wrap;
+}
+
+// Greys out and disables every input/button/select inside a section —
+// used to freeze the grid's geometry controls while locked, so a stray
+// click or drag can't reshape columns/rows/margins/gutters mid-project.
+// Visibility toggles (Display section) are deliberately left out of
+// this, since showing/hiding guides isn't "changing the grid".
+function lockSection(sectionEl){
+  sectionEl.querySelectorAll('input, button, select').forEach(el => { el.disabled = true; });
+  sectionEl.style.opacity = '0.45';
+  sectionEl.style.pointerEvents = 'none';
+}
+
+function buildGridSection(){
+  const wrap = document.createElement('div');
+  const g = state.grid;
+
+  const lockRow = document.createElement('div');
+  lockRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between; ' +
+    'margin:0 12px 4px; padding:9px 10px; background:var(--surface2); border-radius:var(--radius);';
+  const lockLabel = document.createElement('span');
+  lockLabel.style.cssText = 'display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text);';
+  lockLabel.innerHTML = (g.locked
+    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>')
+    + (g.locked ? 'Grid locked' : 'Grid unlocked');
+  const lockBtn = document.createElement('button');
+  lockBtn.className = 'btn ghost';
+  lockBtn.textContent = g.locked ? 'Unlock' : 'Lock';
+  lockBtn.title = 'Prevents columns, rows, margins and gutters from being changed by dragging or editing.';
+  lockBtn.addEventListener('click', () => { pushHistory(); g.locked = !g.locked; renderAll(); });
+  lockRow.appendChild(lockLabel); lockRow.appendChild(lockBtn);
+  wrap.appendChild(lockRow);
+
+  const modeSection = section('Grid type');
+  const modeCtl = document.createElement('div'); modeCtl.className = 'seg-control';
+  [['modular','Modular'],['diagonal','Diagonal']].forEach(([val,label]) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.className = (g.mode || 'modular') === val ? 'active' : '';
+    b.addEventListener('click', () => { pushHistory(); g.mode = val; renderAll(); });
+    modeCtl.appendChild(b);
+  });
+  modeSection.appendChild(fieldRow('Type', modeCtl));
+  if(g.locked) lockSection(modeSection);
+  wrap.appendChild(modeSection);
+
+  if(g.mode === 'diagonal'){
+    const sd = section('Diagonal grid');
+    const cellCtl = numCombo(g.diagCellSize, 5, 20, undefined, v => { g.diagCellSize = v; renderAll(); });
+    sd.appendChild(fieldRow('Cell size', cellCtl));
+    const angleCtl = numCombo(g.diagAngle, 1, -90, 90, v => { g.diagAngle = v; renderAll(); });
+    sd.appendChild(fieldRow('Angle °', angleCtl));
+    const diagHint = document.createElement('div');
+    diagHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:6px;';
+    diagHint.textContent = 'A square lattice rotated around the margin box’s center and clipped to it — the "shop window" grids from Grid Systems in Graphic Design. New elements (and "Randomize") snap to its intersections and inherit its angle; drag any element’s Rotation to realign it by hand.';
+    sd.appendChild(diagHint);
+    if(g.locked) lockSection(sd);
+    wrap.appendChild(sd);
+  }
+
+  if(g.mode !== 'diagonal'){
+  const s1 = section('Layout');
+  const colsCtl = numCombo(g.cols, 1, 1, 24, v => {
+    g.cols = Math.round(v); g.colRatios = syncRatios(g.colRatios, g.cols);
+    clampElementsToPage(); renderAll();
+  });
+  s1.appendChild(fieldRow('Columns', colsCtl));
+  const rowsCtl = numCombo(g.rows, 1, 1, 24, v => {
+    g.rows = Math.round(v); g.rowRatios = syncRatios(g.rowRatios, g.rows);
+    clampElementsToPage(); renderAll();
+  });
+  s1.appendChild(fieldRow('Rows', rowsCtl));
+  const presetWrap = document.createElement('div');
+  presetWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;';
+  [2,3,4,6,8,12].forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'add-layer-btn'; b.style.cssText = 'flex:0 0 auto; padding:4px 9px;';
+    b.textContent = n + ' col';
+    b.addEventListener('click', () => { pushHistory(); g.cols = n; g.colRatios = new Array(n).fill(1); renderAll(); });
+    presetWrap.appendChild(b);
+  });
+  s1.appendChild(presetWrap);
+  if(g.locked) lockSection(s1);
+  wrap.appendChild(s1);
+
+  const s1b = section('Column widths');
+  s1b.appendChild(buildRatioEditor(g, 'colRatios', 'cols', () => renderAll()));
+  const colHint = document.createElement('div');
+  colHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:6px;';
+  colHint.textContent = 'Relative width per column — 1, 2, 1 makes the middle column twice as wide as its neighbors.';
+  s1b.appendChild(colHint);
+  const eqColBtn = document.createElement('button');
+  eqColBtn.className = 'btn ghost'; eqColBtn.style.cssText = 'width:100%; justify-content:center;';
+  eqColBtn.textContent = 'Equalize columns';
+  eqColBtn.addEventListener('click', () => { pushHistory(); g.colRatios = new Array(g.cols).fill(1); renderAll(); });
+  s1b.appendChild(eqColBtn);
+  if(g.locked) lockSection(s1b);
+  wrap.appendChild(s1b);
+
+  const s1c = section('Row heights');
+  s1c.appendChild(buildRatioEditor(g, 'rowRatios', 'rows', () => renderAll()));
+  const rowHint = document.createElement('div');
+  rowHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:6px;';
+  rowHint.textContent = 'Relative height per row — e.g. a thin 0.3 band above a full 1 band, like a running header strip.';
+  s1c.appendChild(rowHint);
+  const eqRowBtn = document.createElement('button');
+  eqRowBtn.className = 'btn ghost'; eqRowBtn.style.cssText = 'width:100%; justify-content:center;';
+  eqRowBtn.textContent = 'Equalize rows';
+  eqRowBtn.addEventListener('click', () => { pushHistory(); g.rowRatios = new Array(g.rows).fill(1); renderAll(); });
+  s1c.appendChild(eqRowBtn);
+  if(g.locked) lockSection(s1c);
+  wrap.appendChild(s1c);
+  } // end g.mode !== 'diagonal' (Layout / Column widths / Row heights)
+
+  const s2 = section('Margins');
+  const grid2 = document.createElement('div'); grid2.className = 'field-grid4';
+  function marginField(labelText, key){
+    const cell = document.createElement('div');
+    const l = document.createElement('label'); l.textContent = labelText;
+    const ctl = numCombo(g[key], 1, 0, undefined, v => { g[key] = v; clampElementsToPage(); renderAll(); });
+    cell.appendChild(l); cell.appendChild(ctl);
+    return cell;
+  }
+  grid2.appendChild(marginField('Top', 'marginTop'));
+  grid2.appendChild(marginField('Right', 'marginRight'));
+  grid2.appendChild(marginField('Bottom', 'marginBottom'));
+  grid2.appendChild(marginField('Left', 'marginLeft'));
+  s2.appendChild(grid2);
+  if(g.locked) lockSection(s2);
+  wrap.appendChild(s2);
+
+  const sBleed = section('Bleed');
+  const bleedCtl = numCombo(state.bleed || 0, 1, 0, undefined, v => { state.bleed = v; clampElementsToPage(); renderAll(); });
+  sBleed.appendChild(fieldRow('Bleed', bleedCtl));
+  const bleedHint = document.createElement('div');
+  bleedHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5;';
+  bleedHint.textContent = 'Extra margin added around the page for print, so artwork can run past the trim edge with no risk of a white sliver after cutting. Elements can now be dragged into it; "Include bleed" in Export adds it to the file itself.';
+  sBleed.appendChild(bleedHint);
+  if(g.locked) lockSection(sBleed);
+  wrap.appendChild(sBleed);
+
+  if(g.mode !== 'diagonal'){
+  const s3 = section('Gutters');
+  const gutterX = numCombo(g.gutterX, 1, 0, undefined, v => { g.gutterX = v; renderAll(); });
+  s3.appendChild(fieldRow('Column gutter', gutterX));
+  const gutterY = numCombo(g.gutterY, 1, 0, undefined, v => { g.gutterY = v; renderAll(); });
+  s3.appendChild(fieldRow('Row gutter', gutterY));
+  if(g.locked) lockSection(s3);
+  wrap.appendChild(s3);
+  }
+
+  const s4 = section('Baseline grid');
+  s4.appendChild(checkboxRow('Show baseline', g.showBaseline, v => { g.showBaseline = v; renderAll(); }));
+  const baseCtl = numCombo(g.baselineStep, 1, 2, undefined, v => { g.baselineStep = v; renderAll(); });
+  s4.appendChild(fieldRow('Step (px)', baseCtl));
+  wrap.appendChild(s4);
+
+  const s5 = section('Display');
+  s5.appendChild(checkboxRow('Show module grid', g.showGrid, v => { g.showGrid = v; renderAll(); }));
+  s5.appendChild(checkboxRow('Show margins', g.showMargins, v => { g.showMargins = v; renderAll(); }));
+  const bgRow = document.createElement('div'); bgRow.className = 'field-row';
+  const bgLabel = document.createElement('label'); bgLabel.textContent = 'Page background';
+  const bgCtl = document.createElement('div'); bgCtl.className='control';
+  const bgInput = document.createElement('input'); bgInput.type='color'; bgInput.value = state.bgColor;
+  let bgPushed = false;
+  bgInput.addEventListener('focus', () => { pushHistory(); bgPushed = true; });
+  bgInput.addEventListener('input', () => {
+    if(!bgPushed){ pushHistory(); bgPushed = true; }
+    state.bgColor = bgInput.value; document.getElementById('page').style.background = state.bgColor;
+  });
+  bgInput.addEventListener('blur', () => { bgPushed = false; });
+  bgCtl.appendChild(bgInput); bgRow.appendChild(bgLabel); bgRow.appendChild(bgCtl);
+  s5.appendChild(bgRow);
+  wrap.appendChild(s5);
+
+  const s6 = section('Explore');
+  const shuffleBtn = document.createElement('button');
+  shuffleBtn.className = 'btn ghost'; shuffleBtn.style.width = '100%'; shuffleBtn.style.justifyContent = 'center';
+  shuffleBtn.textContent = '🎲 Shuffle layout';
+  shuffleBtn.addEventListener('click', () => shuffleAllElements());
+  s6.appendChild(shuffleBtn);
+  const shuffleHint = document.createElement('div');
+  shuffleHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-top:6px;';
+  shuffleHint.textContent = 'Moves every element to a random module span. Undo (⌘Z) to step back through variations.';
+  s6.appendChild(shuffleHint);
+  wrap.appendChild(s6);
+
+  return wrap;
+}
+
+function clampElementsToPage(){
+  const bleed = state.bleed || 0;
+  state.elements.forEach(el => {
+    el.w = Math.min(el.w, state.canvasW + bleed*2);
+    el.h = Math.min(el.h, state.canvasH + bleed*2);
+    el.x = clamp(el.x, -bleed, state.canvasW + bleed - el.w);
+    el.y = clamp(el.y, -bleed, state.canvasH + bleed - el.h);
+  });
+}
+
+function buildElementCommonSection(el){
+  const s = section(el.type === 'image' ? 'Image' : 'Text block');
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text'; nameInput.className = 'name-field'; nameInput.value = el.name || '';
+  nameInput.placeholder = el.type === 'image' ? 'Image' : 'Text';
+  let namePushed = false;
+  nameInput.addEventListener('focus', () => { pushHistory(); namePushed = true; });
+  nameInput.addEventListener('input', () => {
+    if(!namePushed){ pushHistory(); namePushed = true; }
+    el.name = nameInput.value; renderLayersList();
+  });
+  nameInput.addEventListener('blur', () => { namePushed = false; });
+  s.appendChild(fieldRow('Name', nameInput));
+
+  const posGrid = document.createElement('div'); posGrid.className = 'field-grid2';
+  function posField(labelText, key, onSet){
+    const cell = document.createElement('div');
+    const l = document.createElement('label'); l.textContent = labelText;
+    const ctl = numCombo(el[key], 1, undefined, undefined, v => { onSet(v); renderElementPositions(); });
+    cell.appendChild(l); cell.appendChild(ctl);
+    return cell;
+  }
+  posGrid.appendChild(posField('X', 'x', v => { el.x = clamp(v,0,state.canvasW-el.w); }));
+  posGrid.appendChild(posField('Y', 'y', v => { el.y = clamp(v,0,state.canvasH-el.h); }));
+  posGrid.appendChild(posField('Width', 'w', v => { el.w = clamp(v,10,state.canvasW-el.x); refreshElementVisuals(); }));
+  posGrid.appendChild(posField('Height', 'h', v => { el.h = clamp(v,10,state.canvasH-el.y); refreshElementVisuals(); }));
+  s.appendChild(posGrid);
+
+  const rotCtl = sliderCombo(-180, 180, 1, el.rotation || 0, v => {
+    el.rotation = v;
+    const box = document.getElementById('box-' + el.id);
+    if(box) applyBoxTransform(box, el);
+  });
+  s.appendChild(fieldRow('Rotation °', rotCtl));
+  const rotPresets = document.createElement('div');
+  rotPresets.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin:-2px 0 9px;';
+  const presetAngles = [0, 45, 90, 135, -45];
+  const geoForPreset = computeGrid();
+  if(geoForPreset.mode === 'diagonal' && !presetAngles.includes(geoForPreset.diagAngle)){
+    presetAngles.push(geoForPreset.diagAngle);
+  }
+  presetAngles.forEach(deg => {
+    const b = document.createElement('button');
+    b.className = 'add-layer-btn'; b.style.cssText = 'flex:0 0 auto; padding:4px 9px;';
+    b.textContent = deg + '°';
+    b.addEventListener('click', () => {
+      pushHistory();
+      el.rotation = deg;
+      const box = document.getElementById('box-' + el.id);
+      if(box) applyBoxTransform(box, el);
+      renderPropsPanel();
+    });
+    rotPresets.appendChild(b);
+  });
+  s.appendChild(rotPresets);
+
+  const rowBtns = document.createElement('div'); rowBtns.style.cssText = 'display:flex; gap:8px;';
+  const dupBtn = document.createElement('button');
+  dupBtn.className = 'btn ghost'; dupBtn.style.flex = '1'; dupBtn.style.justifyContent = 'center';
+  dupBtn.textContent = 'Duplicate';
+  dupBtn.title = 'Also ⌘C / ⌘V';
+  dupBtn.addEventListener('click', () => { copySelectedElement(); pasteElement(); });
+  const randomBtn = document.createElement('button');
+  randomBtn.className = 'btn ghost'; randomBtn.style.flex = '1'; randomBtn.style.justifyContent = 'center';
+  randomBtn.textContent = '🎲 Randomize';
+  randomBtn.addEventListener('click', () => {
+    pushHistory();
+    randomizeElementPosition(el);
+    renderElementPositions();
+    renderPropsPanel();
+  });
+  rowBtns.appendChild(dupBtn); rowBtns.appendChild(randomBtn);
+  s.appendChild(rowBtns);
+
+  return s;
+}
+
+function buildImageSection(el){
+  const s = section('Appearance');
+
+  const uploadBtn = document.createElement('button');
+  uploadBtn.className = 'btn ghost'; uploadBtn.style.width='100%'; uploadBtn.style.justifyContent='center';
+  uploadBtn.textContent = el.src ? 'Replace image…' : 'Upload image…';
+  uploadBtn.addEventListener('click', () => { pushHistory(); triggerImageUpload(el.id); });
+  s.appendChild(uploadBtn);
+
+  const fitCtl = document.createElement('div'); fitCtl.className = 'seg-control'; fitCtl.style.marginTop='10px';
+  [['cover','Cover'],['contain','Contain'],['fill','Stretch']].forEach(([val,label]) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.className = el.fit === val ? 'active' : '';
+    b.addEventListener('click', () => { pushHistory(); el.fit = val; refreshElementVisuals(); renderPropsPanel(); });
+    fitCtl.appendChild(b);
+  });
+  s.appendChild(fieldRow('Fit', fitCtl));
+
+  if(el.src){
+    const cropBtn = document.createElement('button');
+    cropBtn.className = 'btn ghost'; cropBtn.style.width='100%'; cropBtn.style.justifyContent='center'; cropBtn.style.marginTop='8px';
+    cropBtn.textContent = 'Pan / zoom in frame…';
+    cropBtn.addEventListener('click', () => {
+      const box = document.getElementById('box-' + el.id);
+      if(box) toggleCropMode(el, box);
+    });
+    s.appendChild(cropBtn);
+    const cropHint = document.createElement('div');
+    cropHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-top:6px;';
+    cropHint.textContent = 'Or double-click the image on the page: drag to pan, scroll to zoom.';
+    s.appendChild(cropHint);
+  }
+
+  const zoomCtl = numCombo(el.zoom, 0.1, 1, 5, v => { el.zoom = v; refreshElementVisuals(); });
+  zoomCtl.querySelector('input').id = 'zoom-input';
+  s.appendChild(fieldRow('Zoom', zoomCtl));
+
+  const imgRotCtl = sliderCombo(-180, 180, 1, el.imgRotation || 0, v => { el.imgRotation = v; refreshElementVisuals(); });
+  imgRotCtl.querySelector('input').id = 'imgrot-input';
+  s.appendChild(fieldRow('Content rotation °', imgRotCtl));
+  const imgRotHint = document.createElement('div');
+  imgRotHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin:-4px 0 9px;';
+  imgRotHint.textContent = 'Spins the photo inside its frame — the frame itself (and its own Rotation, above) doesn’t move. In pan/zoom mode, hold Shift while scrolling to rotate instead of zoom.';
+  s.appendChild(imgRotHint);
+
+  const panGrid = document.createElement('div'); panGrid.className = 'field-grid2'; panGrid.style.marginTop = '4px';
+  function panField(labelText, key, id){
+    const cell = document.createElement('div');
+    const l = document.createElement('label'); l.textContent = labelText;
+    const ctl = numCombo(el[key], 5, 0, 100, v => { el[key] = v; refreshElementVisuals(); });
+    ctl.querySelector('input').id = id;
+    cell.appendChild(l); cell.appendChild(ctl);
+    return cell;
+  }
+  panGrid.appendChild(panField('Pan X %', 'panX', 'panx-input'));
+  panGrid.appendChild(panField('Pan Y %', 'panY', 'pany-input'));
+  s.appendChild(panGrid);
+
+  return s;
+}
+
+function buildTextSection(el){
+  const s = section('Typography');
+
+  const loremBtn = document.createElement('button');
+  loremBtn.className = 'btn ghost'; loremBtn.style.width = '100%'; loremBtn.style.justifyContent = 'center'; loremBtn.style.marginBottom = '10px';
+  loremBtn.textContent = 'Insert Lorem Ipsum';
+  loremBtn.addEventListener('click', () => {
+    pushHistory();
+    const box = document.getElementById('box-' + el.id);
+    // Roughly fill the block's area rather than always the same length,
+    // so a short caption slot and a full paragraph slot both get a
+    // sensible amount of placeholder text.
+    const approxChars = Math.max(20, (el.w * el.h) / (el.fontSize * el.fontSize) * 3.2);
+    const wordCount = clamp(Math.round(approxChars / 5.5), 6, 220);
+    el.content = loremIpsum(wordCount);
+    if(box){ renderTextContent(box, el); if(el.autoFit) autofitText(el, box); }
+  });
+  s.appendChild(loremBtn);
+
+  const combo = document.createElement('div'); combo.className = 'font-combo';
+  const fontInput = document.createElement('input');
+  fontInput.type = 'text'; fontInput.className = 'text-field';
+  fontInput.value = el.googleFont || '';
+  fontInput.placeholder = 'System font (leave blank) or Google Font name';
+  const list = document.createElement('div'); list.className = 'font-list';
+  GOOGLE_FONTS.forEach(name => {
+    const item = document.createElement('div'); item.className = 'font-item'; item.textContent = name;
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      pushHistory();
+      el.googleFont = name; fontInput.value = name;
+      ensureGoogleFont(name); refreshElementVisuals(); list.classList.remove('open');
+    });
+    list.appendChild(item);
+  });
+  fontInput.addEventListener('focus', () => list.classList.add('open'));
+  fontInput.addEventListener('blur', () => setTimeout(() => list.classList.remove('open'), 120));
+  fontInput.addEventListener('change', () => {
+    pushHistory();
+    el.googleFont = fontInput.value.trim();
+    if(el.googleFont) ensureGoogleFont(el.googleFont);
+    refreshElementVisuals();
+  });
+  combo.appendChild(fontInput); combo.appendChild(list);
+  s.appendChild(fieldRow('Google Font', combo));
+
+  const fallback = document.createElement('select'); fallback.className = 'prop-select';
+  [['Helvetica, Arial, sans-serif','Sans-serif'],['Georgia, "Times New Roman", serif','Serif'],
+   ['"Courier New", monospace','Monospace']].forEach(([val,label]) => {
+    const o = document.createElement('option'); o.value = val; o.textContent = label;
+    if(el.fontFamily === val) o.selected = true;
+    fallback.appendChild(o);
+  });
+  fallback.addEventListener('change', () => { pushHistory(); el.fontFamily = fallback.value; refreshElementVisuals(); });
+  s.appendChild(fieldRow('Fallback', fallback));
+
+  const sizeCtl = numCombo(el.fontSize, 1, 4, 400, v => { el.fontSize = v; refreshElementVisuals(); });
+  if(el.autoFit){
+    sizeCtl.querySelector('input').disabled = true;
+    sizeCtl.querySelectorAll('button').forEach(b => b.disabled = true);
+    sizeCtl.style.opacity = '0.45';
+  }
+  s.appendChild(fieldRow('Size (px)', sizeCtl));
+
+  s.appendChild(checkboxRow('Auto-fit to box (grow & shrink)', el.autoFit, v => {
+    el.autoFit = v;
+    const box = document.getElementById('box-' + el.id);
+    if(box && v && el.vAlign !== 'justify') autofitText(el, box);
+    renderPropsPanel();
+  }));
+  if(el.autoFit && el.vAlign === 'justify'){
+    const hint = document.createElement('div');
+    hint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin:-4px 0 9px;';
+    hint.textContent = 'Auto-fit doesn\'t apply with "Justify" vertical align yet — size stays manual.';
+    s.appendChild(hint);
+  }
+
+  const lhCtl = numCombo(el.lineHeight, 0.05, 0.5, 3, v => { el.lineHeight = v; refreshElementVisuals(); });
+  s.appendChild(fieldRow('Line height', lhCtl));
+
+  const lsCtl = numCombo(el.letterSpacing, 0.1, -5, 20, v => { el.letterSpacing = v; refreshElementVisuals(); });
+  s.appendChild(fieldRow('Letter spacing', lsCtl));
+
+  const weightSel = document.createElement('select'); weightSel.className = 'prop-select';
+  [300,400,500,600,700].forEach(w => {
+    const o = document.createElement('option'); o.value = w; o.textContent = w;
+    if(el.weight === w) o.selected = true; weightSel.appendChild(o);
+  });
+  weightSel.addEventListener('change', () => { pushHistory(); el.weight = parseInt(weightSel.value,10); refreshElementVisuals(); });
+  s.appendChild(fieldRow('Weight', weightSel));
+
+  s.appendChild(checkboxRow('Italic', el.italic, v => { el.italic = v; refreshElementVisuals(); }));
+
+  const alignCtl = document.createElement('div'); alignCtl.className = 'seg-control';
+  [['left','&#8676;'],['center','&#8596;'],['right','&#8677;'],['justify','&#9776;']].forEach(([val,label]) => {
+    const b = document.createElement('button'); b.innerHTML = label;
+    b.className = el.align === val ? 'active' : '';
+    b.addEventListener('click', () => { pushHistory(); el.align = val; refreshElementVisuals(); renderPropsPanel(); });
+    alignCtl.appendChild(b);
+  });
+  s.appendChild(fieldRow('Align', alignCtl));
+
+  const vAlignCtl = document.createElement('div'); vAlignCtl.className = 'seg-control';
+  [['top','Top'],['middle','Middle'],['bottom','Bottom'],['justify','Justify']].forEach(([val,label]) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.className = (el.vAlign || 'top') === val ? 'active' : '';
+    b.title = val === 'justify' ? 'Spread paragraphs from the top edge to the bottom edge' : 'Vertical align: ' + label;
+    b.addEventListener('click', () => {
+      pushHistory();
+      el.vAlign = val;
+      renderAll(); // switching to/from "justify" changes how many DOM nodes the block has
+    });
+    vAlignCtl.appendChild(b);
+  });
+  s.appendChild(fieldRow('Vertical align', vAlignCtl));
+
+  const colorRow = document.createElement('div'); colorRow.className = 'field-row';
+  const colorLabel = document.createElement('label'); colorLabel.textContent = 'Color';
+  const colorCtl = document.createElement('div'); colorCtl.className = 'control';
+  const colorInput = document.createElement('input'); colorInput.type = 'color'; colorInput.value = el.color;
+  colorInput.addEventListener('focus', () => pushHistory());
+  colorInput.addEventListener('input', () => { el.color = colorInput.value; refreshElementVisuals(); });
+  colorCtl.appendChild(colorInput); colorRow.appendChild(colorLabel); colorRow.appendChild(colorCtl);
+  s.appendChild(colorRow);
+
+  return s;
+}
+
+function buildDeleteSection(el){
+  const s = section('');
+  s.querySelector('h3').remove();
+  const btn = document.createElement('button'); btn.className = 'danger-btn'; btn.textContent = 'Delete ' + (el.type === 'image' ? 'image' : 'text block');
+  btn.addEventListener('click', () => deleteElement(el.id));
+  s.appendChild(btn);
+  return s;
+}
+
+/* ---------------------------------------------------------------------
+   IMAGE UPLOAD
+--------------------------------------------------------------------- */
+let pendingUploadElId = null;
+const fileInput = document.getElementById('file-input');
+function triggerImageUpload(elId){
+  pendingUploadElId = elId;
+  fileInput.value = '';
+  fileInput.click();
+}
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if(!file || !pendingUploadElId) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const el = getElement(pendingUploadElId);
+    if(el){ el.src = reader.result; renderAll(); }
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ---------------------------------------------------------------------
+   TOP-LEVEL RENDER
+--------------------------------------------------------------------- */
+function renderVisual(){ renderStage(); }
+
+function renderAll(){
+  renderStage();
+  renderElements();
+  renderLayersList();
+  renderPropsPanel();
+}
+
+window.addEventListener('resize', () => renderStage());
+
+/* ---------------------------------------------------------------------
+   TOAST
+--------------------------------------------------------------------- */
+let toastTimer = null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ---------------------------------------------------------------------
+   TOPBAR WIRING
+--------------------------------------------------------------------- */
+const wInput = document.getElementById('canvas-w');
+const hInput = document.getElementById('canvas-h');
+const unitSelect = document.getElementById('canvas-unit');
+const UNIT_STEP = { px: '1', mm: '0.1', cm: '0.1', in: '0.01' };
+function applyUnitStep(){ wInput.step = UNIT_STEP[state.canvasUnit]; hInput.step = UNIT_STEP[state.canvasUnit]; }
+applyUnitStep();
+
+wInput.addEventListener('change', () => { const v = parseFloat(wInput.value); if(v>0){ state.canvasW = v; clampElementsToPage(); renderAll(); } });
+hInput.addEventListener('change', () => { const v = parseFloat(hInput.value); if(v>0){ state.canvasH = v; clampElementsToPage(); renderAll(); } });
+
+function fmtDim(v){ return state.canvasUnit === 'px' ? Math.round(v) : round4(v); }
+
+// Every geometric value that lives in canvas units — page size, grid
+// margins/gutters, and every element's x/y/w/h — must be converted
+// together when the display unit changes. Missing even one of these
+// (as happened earlier with Phi Guide's stroke width) leaves that value
+// meaning something completely different once the unit flips.
+unitSelect.addEventListener('change', () => {
+  const newUnit = unitSelect.value;
+  const from = state.canvasUnit;
+  const conv = (v) => round4(convertUnits(v, from, newUnit));
+  state.canvasW = conv(state.canvasW); state.canvasH = conv(state.canvasH);
+  const g = state.grid;
+  g.marginTop = conv(g.marginTop); g.marginRight = conv(g.marginRight);
+  g.marginBottom = conv(g.marginBottom); g.marginLeft = conv(g.marginLeft);
+  g.gutterX = conv(g.gutterX); g.gutterY = conv(g.gutterY);
+  state.bleed = conv(state.bleed || 0);
+  state.elements.forEach(el => { el.x = conv(el.x); el.y = conv(el.y); el.w = conv(el.w); el.h = conv(el.h); });
+  state.canvasUnit = newUnit;
+  wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH);
+  applyUnitStep();
+  renderAll();
+});
+
+document.getElementById('preset-size').addEventListener('change', (e) => {
+  const v = e.target.value; if(!v) return;
+  const [w,h,unit] = v.split('|');
+  const from = state.canvasUnit;
+  const conv = (val) => round4(convertUnits(val, from, unit));
+  const g = state.grid;
+  g.marginTop = conv(g.marginTop); g.marginRight = conv(g.marginRight);
+  g.marginBottom = conv(g.marginBottom); g.marginLeft = conv(g.marginLeft);
+  g.gutterX = conv(g.gutterX); g.gutterY = conv(g.gutterY);
+  state.bleed = conv(state.bleed || 0);
+  state.elements.forEach(el => { el.x = conv(el.x); el.y = conv(el.y); el.w = conv(el.w); el.h = conv(el.h); });
+  state.canvasW = parseFloat(w); state.canvasH = parseFloat(h); state.canvasUnit = unit;
+  wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH);
+  unitSelect.value = unit;
+  applyUnitStep();
+  e.target.value = '';
+  clampElementsToPage();
+  renderAll();
+});
+
+document.getElementById('btn-add-image').addEventListener('click', () => addElement(defaultImageElement()));
+document.getElementById('btn-add-image-2').addEventListener('click', () => addElement(defaultImageElement()));
+document.getElementById('btn-add-text').addEventListener('click', () => addElement(defaultTextElement()));
+document.getElementById('btn-add-text-2').addEventListener('click', () => addElement(defaultTextElement()));
+
+document.getElementById('page').addEventListener('pointerdown', (e) => {
+  if(e.target.id === 'page' || e.target.id === 'grid-overlay' || e.target.id === 'elements-layer'){
+    selectElement(null, true);
+  }
+});
+
+/* ---------------------------------------------------------------------
+   COPY / PASTE — duplicates whichever element is selected (image or
+   text alike). Uses an in-app clipboard variable rather than the real
+   OS clipboard: simpler, and it means Cmd+C/Cmd+V over a text block
+   that's mid-edit can still fall through to the browser's own text
+   copy/paste (see the keydown guard below) without any conflict.
+--------------------------------------------------------------------- */
+let elementClipboard = null;
+function copySelectedElement(){
+  const el = state.selectedId ? getElement(state.selectedId) : null;
+  if(!el){ toast('Nothing selected to copy'); return; }
+  elementClipboard = JSON.parse(JSON.stringify(el));
+  toast('Copied');
+}
+function pasteElement(){
+  if(!elementClipboard){ toast('Nothing to paste'); return; }
+  pushHistory();
+  const copy = JSON.parse(JSON.stringify(elementClipboard));
+  copy.id = uid();
+  // Offset so the paste is visibly a new block, not silently stacked
+  // exactly on top of the original; clamp back onto the page if that
+  // would push it off the edge (e.g. pasting near a corner repeatedly).
+  const offset = 24;
+  copy.x = clamp(copy.x + offset, 0, Math.max(0, state.canvasW - copy.w));
+  copy.y = clamp(copy.y + offset, 0, Math.max(0, state.canvasH - copy.h));
+  state.elements.push(copy);
+  state.selectedId = copy.id;
+  renderAll();
+  // Repeated Cmd+V keeps cascading from the latest paste rather than
+  // restacking on the original every time.
+  elementClipboard = copy;
+}
+
+document.addEventListener('keydown', (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const editable = document.activeElement && document.activeElement.isContentEditable;
+  const meta = e.metaKey || e.ctrlKey;
+
+  // Undo/redo/copy/paste work everywhere except while actively typing
+  // in a text block or a form field, where these should do the
+  // browser's native text editing instead of acting on the whole page.
+  if(meta && !editable && tag !== 'INPUT' && tag !== 'TEXTAREA'){
+    if(e.key.toLowerCase() === 'z' && e.shiftKey){ e.preventDefault(); redo(); return; }
+    if(e.key.toLowerCase() === 'z'){ e.preventDefault(); undo(); return; }
+    if(e.key.toLowerCase() === 'y'){ e.preventDefault(); redo(); return; }
+    if(e.key.toLowerCase() === 'c'){ e.preventDefault(); copySelectedElement(); return; }
+    if(e.key.toLowerCase() === 'v'){ e.preventDefault(); pasteElement(); return; }
+  }
+
+  if(editable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+    if(e.key === 'Escape' && editable && document.activeElement.__exitEdit){
+      document.activeElement.blur();
+    }
+    return;
+  }
+  if((e.key === 'Delete' || e.key === 'Backspace') && state.selectedId){
+    e.preventDefault(); deleteElement(state.selectedId);
+  }
+  if(e.key === 'Escape'){
+    if(activeCropEl){ const box = document.getElementById('box-' + activeCropEl); if(box) exitCropMode(box); }
+    selectElement(null, true);
+  }
+  if(e.key.toLowerCase() === 'g' && !meta){
+    e.preventDefault();
+    pushHistory();
+    state.grid.showGrid = !state.grid.showGrid;
+    renderStage();
+    if(!state.selectedId) renderPropsPanel();
+    toast('Grid ' + (state.grid.showGrid ? 'shown' : 'hidden'));
+  }
+  if(e.key.toLowerCase() === 'm' && !meta){
+    e.preventDefault();
+    pushHistory();
+    state.grid.showMargins = !state.grid.showMargins;
+    renderStage();
+    if(!state.selectedId) renderPropsPanel();
+    toast('Margins ' + (state.grid.showMargins ? 'shown' : 'hidden'));
+  }
+});
+
+/* ---------------------------------------------------------------------
+   EXPORT
+--------------------------------------------------------------------- */
+function pixelExportDims(includeBleed){
+  const bleed = includeBleed ? (state.bleed || 0) : 0;
+  const totalW = state.canvasW + bleed*2, totalH = state.canvasH + bleed*2;
+  if(state.canvasUnit === 'px') return { w: Math.round(totalW), h: Math.round(totalH) };
+  const pxPerUnit = UNIT_TO_PX[state.canvasUnit] * (EXPORT_DPI / 96);
+  return { w: Math.round(totalW * pxPerUnit), h: Math.round(totalH * pxPerUnit) };
+}
+
+async function exportPNG(includeGuides, transparent, includeBleed){
+  const dims = pixelExportDims(includeBleed);
+  const bleed = includeBleed ? (state.bleed || 0) : 0;
+  const scale = dims.w / (state.canvasW + bleed*2);
+  const offset = bleed * scale; // shifts trim-space (0,0) to its position within the (possibly larger) bleed canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = dims.w; canvas.height = dims.h;
+  const ctx = canvas.getContext('2d');
+
+  if(!transparent){ ctx.fillStyle = state.bgColor; ctx.fillRect(0,0,dims.w,dims.h); }
+
+  for(const el of state.elements){
+    if(el.visible === false) continue;
+    const x = offset + el.x*scale, y = offset + el.y*scale, w = el.w*scale, h = el.h*scale;
+    // Rotate the canvas itself around the element's center rather than
+    // teaching drawImageFitted/drawTextElement about rotation — they
+    // keep drawing into the same unrotated x/y/w/h rect either way.
+    ctx.save();
+    if(el.rotation){
+      const cx = x + w/2, cy = y + h/2;
+      ctx.translate(cx, cy);
+      ctx.rotate(el.rotation * Math.PI/180);
+      ctx.translate(-cx, -cy);
+    }
+    if(el.type === 'image' && el.src){
+      await drawImageFitted(ctx, el, x, y, w, h);
+    } else if(el.type === 'text'){
+      await drawTextElement(ctx, el, x, y, w, h, scale);
+    }
+    ctx.restore();
+  }
+
+  if(includeGuides) drawGuidesOnCanvas(ctx, scale, offset);
+  // The trim line is reference-only (like the other guides) — it should
+  // never bake a visible pink dash into an actual print-ready file, so
+  // it rides on the same "include guides" checkbox, not on the bleed
+  // checkbox alone.
+  if(includeGuides && includeBleed && bleed > 0) drawBleedGuideOnCanvas(ctx, scale, offset);
+
+  canvas.toBlob(blob => downloadBlob(blob, `grid-page-${dims.w}x${dims.h}.png`));
+}
+
+function drawBleedGuideOnCanvas(ctx, scale, offset){
+  ctx.save();
+  ctx.strokeStyle = '#d64d8a';
+  ctx.lineWidth = Math.max(1, scale*1.5);
+  ctx.setLineDash([scale*2, scale*4]);
+  ctx.strokeRect(offset, offset, state.canvasW*scale, state.canvasH*scale);
+  ctx.restore();
+}
+
+function drawImageFitted(ctx, el, x, y, w, h){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const boxRatio = w/h, imgRatio = iw/ih;
+      let dw, dh, dx, dy;
+      if(el.fit === 'fill'){ dw = w; dh = h; dx = x; dy = y; }
+      else if((el.fit === 'cover') === (imgRatio > boxRatio)){
+        // cover+wide-image, or contain+tall-image -> fit by height
+        dh = h; dw = h*imgRatio;
+        dx = x - (dw-w) * (el.panX/100); dy = y;
+      } else {
+        dw = w; dh = w/imgRatio;
+        dx = x; dy = y - (dh-h) * (el.panY/100);
+      }
+      // Zoom scales the already-fitted rect around the same pan pivot
+      // point the crop tool uses on screen, so export matches preview.
+      // rotationCoverScale adds exactly the extra scale a WxH frame
+      // needs to stay fully covered once rotated (see applyImageStyle) —
+      // without it, rotated exports would show corner gaps the on-screen
+      // preview no longer has.
+      const zoom = (el.zoom || 1) * rotationCoverScale(w, h, el.imgRotation || 0);
+      const pivotX = x + w*(el.panX/100), pivotY = y + h*(el.panY/100);
+      if(zoom !== 1){
+        const fxr = dw !== 0 ? (pivotX-dx)/dw : 0.5, fyr = dh !== 0 ? (pivotY-dy)/dh : 0.5;
+        const dw2 = dw*zoom, dh2 = dh*zoom;
+        dx = pivotX - fxr*dw2; dy = pivotY - fyr*dh2;
+        dw = dw2; dh = dh2;
+      }
+      // Content rotation spins only the photo around that same pivot —
+      // the clip rect above (the frame) was already applied unrotated,
+      // so the crop boundary stays put while the picture turns inside it.
+      if(el.imgRotation){
+        ctx.translate(pivotX, pivotY);
+        ctx.rotate(el.imgRotation * Math.PI/180);
+        ctx.translate(-pivotX, -pivotY);
+      }
+      ctx.drawImage(img, dx, dy, dw, dh);
+      ctx.restore();
+      resolve();
+    };
+    img.onerror = () => resolve();
+    img.src = el.src;
+  });
+}
+
+async function drawTextElement(ctx, el, x, y, w, h, scale){
+  const family = el.googleFont || (el.fontFamily || 'sans-serif').split(',')[0].replace(/"/g,'');
+  const fontSize = el.fontSize * scale;
+  const weightStyle = (el.italic ? 'italic ' : '') + el.weight + ' ' + fontSize + 'px "' + family + '"';
+  try{ await document.fonts.load(weightStyle); }catch(e){}
+  // Clip to the frame like the on-screen .el-text-clip does, so text
+  // that doesn't fit (long content, autoFit off) is cropped in the
+  // export instead of spilling into whatever's drawn next.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.font = weightStyle;
+  ctx.fillStyle = el.color;
+  ctx.textBaseline = 'top';
+  const lineHeightPx = fontSize * el.lineHeight;
+  // Word-wrap each explicit paragraph (split on the real line breaks the
+  // user typed) separately, instead of collapsing the whole block into
+  // one run of words first — otherwise an intentional blank line or
+  // paragraph break the user typed would silently disappear on export.
+  const paragraphs = (el.content || '').split('\n');
+  const lines = [];
+  paragraphs.forEach(para => {
+    const words = para.split(/\s+/).filter(w => w.length);
+    if(words.length === 0){ lines.push(''); return; }
+    let cur = '';
+    words.forEach(word => {
+      const test = cur ? cur + ' ' + word : word;
+      if(ctx.measureText(test).width > w && cur){ lines.push(cur); cur = word; }
+      else cur = test;
+    });
+    if(cur) lines.push(cur);
+  });
+
+  const totalH = lines.length * lineHeightPx;
+  let startY = y;
+  if(el.vAlign === 'middle') startY = y + (h - totalH)/2;
+  else if(el.vAlign === 'bottom') startY = y + (h - totalH);
+
+  // "Justify" spreads every wrapped line evenly from the top edge to
+  // the bottom edge (first line flush top, last line flush bottom) —
+  // a reasonable raster approximation of the flex space-between layout
+  // used on screen/in the PDF export, which spreads paragraphs rather
+  // than individually-wrapped lines.
+  const useSpread = el.vAlign === 'justify' && lines.length > 1;
+  const gap = useSpread ? (h - lineHeightPx) / (lines.length - 1) : lineHeightPx;
+  const rowY = useSpread ? y : startY;
+
+  lines.forEach((line, i) => {
+    let lx = x;
+    const lineW = ctx.measureText(line).width;
+    if(el.align === 'center') lx = x + (w-lineW)/2;
+    if(el.align === 'right') lx = x + (w-lineW);
+    ctx.fillText(line, lx, rowY + i*gap);
+  });
+  ctx.restore();
+}
+
+function drawGuidesOnCanvas(ctx, scale, offset){
+  offset = offset || 0;
+  const g = state.grid, geo = computeGrid();
+  ctx.save();
+  ctx.lineWidth = Math.max(0.5, scale*0.75);
+  ctx.strokeStyle = '#4F9C8F';
+  geo.colBounds.forEach(c => {
+    [c.start, c.end].forEach(cx => {
+      ctx.beginPath(); ctx.moveTo(offset+cx*scale, offset+g.marginTop*scale); ctx.lineTo(offset+cx*scale, offset+(state.canvasH-g.marginBottom)*scale); ctx.stroke();
+    });
+  });
+  geo.rowBounds.forEach(r => {
+    [r.start, r.end].forEach(ry => {
+      ctx.beginPath(); ctx.moveTo(offset+g.marginLeft*scale, offset+ry*scale); ctx.lineTo(offset+(state.canvasW-g.marginRight)*scale, offset+ry*scale); ctx.stroke();
+    });
+  });
+  ctx.restore();
+}
+
+function buildExportSVG(includeGuides, transparent, includeBleed){
+  const w = state.canvasW, h = state.canvasH;
+  const bleed = includeBleed ? (state.bleed || 0) : 0;
+  const doc = document.implementation.createDocument(SVGNS, 'svg', null);
+  const svg = doc.documentElement;
+  svg.setAttribute('xmlns', SVGNS);
+  svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  const suffix = state.canvasUnit === 'px' ? '' : state.canvasUnit;
+  svg.setAttribute('width', (w+bleed*2) + suffix);
+  svg.setAttribute('height', (h+bleed*2) + suffix);
+  // Every element/guide below is still authored in plain 0..w/0..h
+  // canvas coordinates — shifting the viewBox's own origin to -bleed is
+  // enough to reveal that extra margin without touching any of them.
+  svg.setAttribute('viewBox', `${-bleed} ${-bleed} ${w+bleed*2} ${h+bleed*2}`);
+
+  if(!transparent){
+    const bg = doc.createElementNS(SVGNS, 'rect');
+    bg.setAttribute('x',-bleed); bg.setAttribute('y',-bleed);
+    bg.setAttribute('width',w+bleed*2); bg.setAttribute('height',h+bleed*2);
+    bg.setAttribute('fill', state.bgColor);
+    svg.appendChild(bg);
+  }
+  if(includeGuides && bleed > 0){
+    const trimRect = doc.createElementNS(SVGNS, 'rect');
+    trimRect.setAttribute('x',0); trimRect.setAttribute('y',0);
+    trimRect.setAttribute('width',w); trimRect.setAttribute('height',h);
+    trimRect.setAttribute('fill','none'); trimRect.setAttribute('stroke','#d64d8a');
+    trimRect.setAttribute('stroke-width', 1.5); trimRect.setAttribute('stroke-dasharray','2 4');
+    svg.appendChild(trimRect);
+  }
+
+  state.elements.forEach(el => {
+    if(el.visible === false) return;
+    // A rotated element gets wrapped in its own <g rotate(...)> around
+    // its center — clip-path coordinates are evaluated in that same
+    // (now-rotated) local space, so the crop frame and the image inside
+    // it keep matching and simply rotate together as one rigid unit.
+    let target = svg;
+    if(el.rotation){
+      const cx = fx(el.x + el.w/2), cy = fx(el.y + el.h/2);
+      target = doc.createElementNS(SVGNS, 'g');
+      target.setAttribute('transform', `rotate(${fx(el.rotation)} ${cx} ${cy})`);
+      svg.appendChild(target);
+    }
+    if(el.type === 'image' && el.src){
+      const clipId = 'clip-' + el.id;
+      const clipPath = doc.createElementNS(SVGNS, 'clipPath'); clipPath.setAttribute('id', clipId);
+      const clipRect = doc.createElementNS(SVGNS, 'rect');
+      clipRect.setAttribute('x', fx(el.x)); clipRect.setAttribute('y', fx(el.y));
+      clipRect.setAttribute('width', fx(el.w)); clipRect.setAttribute('height', fx(el.h));
+      clipPath.appendChild(clipRect); target.appendChild(clipPath);
+
+      const img = doc.createElementNS(SVGNS, 'image');
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', el.src);
+      img.setAttribute('x', fx(el.x)); img.setAttribute('y', fx(el.y));
+      img.setAttribute('width', fx(el.w)); img.setAttribute('height', fx(el.h));
+      // SVG's preserveAspectRatio only offers 9 fixed alignments, not an
+      // arbitrary pan percentage — snap panX/panY to the nearest one as
+      // a reasonable approximation of the on-screen crop.
+      const xAlign = el.panX < 33 ? 'xMin' : el.panX > 66 ? 'xMax' : 'xMid';
+      const yAlign = el.panY < 33 ? 'YMin' : el.panY > 66 ? 'YMax' : 'YMid';
+      img.setAttribute('preserveAspectRatio', el.fit === 'fill' ? 'none' : (xAlign+yAlign) + (el.fit === 'contain' ? ' meet' : ' slice'));
+      img.setAttribute('clip-path', `url(#${clipId})`);
+      const zoom = (el.zoom || 1) * rotationCoverScale(el.w, el.h, el.imgRotation || 0);
+      if(zoom !== 1 || el.imgRotation){
+        const pivotX = fx(el.x + el.w*(el.panX/100)), pivotY = fx(el.y + el.h*(el.panY/100));
+        const rot = el.imgRotation ? `rotate(${fx(el.imgRotation)} ${pivotX} ${pivotY}) ` : '';
+        img.setAttribute('transform', `${rot}translate(${pivotX} ${pivotY}) scale(${zoom}) translate(${-pivotX} ${-pivotY})`);
+      }
+      target.appendChild(img);
+    } else if(el.type === 'text'){
+      const fo = doc.createElementNS(SVGNS, 'foreignObject');
+      fo.setAttribute('x', fx(el.x)); fo.setAttribute('y', fx(el.y));
+      fo.setAttribute('width', fx(el.w)); fo.setAttribute('height', fx(el.h));
+      const outer = doc.createElementNS(HTMLNS, 'div');
+      outer.setAttribute('xmlns', HTMLNS);
+      const vAlignCSS = { top:'flex-start', middle:'center', bottom:'flex-end', justify:'space-between' };
+      outer.setAttribute('style', `width:100%; height:100%; overflow:hidden; display:flex; flex-direction:column; ` +
+        `justify-content:${vAlignCSS[el.vAlign] || 'flex-start'};`);
+      const family = el.googleFont ? `"${el.googleFont}", ${el.fontFamily||'sans-serif'}` : (el.fontFamily||'sans-serif');
+      const textStyle = `font-family:${family}; font-size:${el.fontSize}px; line-height:${el.lineHeight}; ` +
+        `letter-spacing:${el.letterSpacing}px; font-weight:${el.weight}; font-style:${el.italic?'italic':'normal'}; ` +
+        `text-align:${el.align}; color:${el.color}; width:100%; white-space:pre-wrap; word-wrap:break-word; margin:0;`;
+      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [el.content || ''];
+      paragraphs.forEach(p => {
+        const div = doc.createElementNS(HTMLNS, 'div');
+        div.setAttribute('xmlns', HTMLNS);
+        div.setAttribute('style', textStyle);
+        div.textContent = p.length ? p : ' ';
+        outer.appendChild(div);
+      });
+      fo.appendChild(outer);
+      target.appendChild(fo);
+    }
+  });
+
+  if(includeGuides){
+    const g = state.grid, geo = computeGrid();
+    const gg = doc.createElementNS(SVGNS, 'g');
+    gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
+    geo.colBounds.forEach(c => {
+      [c.start, c.end].forEach(cx => {
+        const l = doc.createElementNS(SVGNS,'line');
+        l.setAttribute('x1',fx(cx)); l.setAttribute('y1',fx(g.marginTop)); l.setAttribute('x2',fx(cx)); l.setAttribute('y2',fx(h-g.marginBottom));
+        gg.appendChild(l);
+      });
+    });
+    geo.rowBounds.forEach(r => {
+      [r.start, r.end].forEach(ry => {
+        const l = doc.createElementNS(SVGNS,'line');
+        l.setAttribute('x1',fx(g.marginLeft)); l.setAttribute('y1',fx(ry)); l.setAttribute('x2',fx(w-g.marginRight)); l.setAttribute('y2',fx(ry));
+        gg.appendChild(l);
+      });
+    });
+    svg.appendChild(gg);
+  }
+
+  return svg;
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+const exportModal = document.getElementById('export-modal');
+document.getElementById('btn-export').addEventListener('click', () => {
+  document.getElementById('export-bleed-row').hidden = !(state.bleed > 0);
+  exportModal.classList.add('show');
+});
+document.getElementById('export-cancel').addEventListener('click', () => exportModal.classList.remove('show'));
+document.getElementById('export-svg').addEventListener('click', () => {
+  const includeGuides = document.getElementById('export-guides').checked;
+  const transparent = document.getElementById('export-transparent').checked;
+  const includeBleed = state.bleed > 0 && document.getElementById('export-bleed').checked;
+  const svg = buildExportSVG(includeGuides, transparent, includeBleed);
+  const xml = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([xml], {type:'image/svg+xml'});
+  downloadBlob(blob, `grid-page-${fmtDim(state.canvasW)}x${fmtDim(state.canvasH)}${state.canvasUnit}.svg`);
+  exportModal.classList.remove('show');
+  toast('SVG exported');
+});
+document.getElementById('export-png').addEventListener('click', async () => {
+  const includeGuides = document.getElementById('export-guides').checked;
+  const transparent = document.getElementById('export-transparent').checked;
+  const includeBleed = state.bleed > 0 && document.getElementById('export-bleed').checked;
+  await exportPNG(includeGuides, transparent, includeBleed);
+  exportModal.classList.remove('show');
+  toast('PNG exported');
+});
+
+/* ---------------------------------------------------------------------
+   PDF EXPORT — via the browser's native print-to-PDF instead of
+   rasterizing. PNG/SVG both end up with text either baked into pixels
+   (PNG) or wrapped in a <foreignObject> that many non-browser SVG
+   consumers render inconsistently (Illustrator, Affinity...); printing
+   real HTML keeps every text block as actual selectable/copyable text
+   in the resulting PDF, exactly like printing a normal web page. A
+   dedicated #print-root (hidden on screen, shown only in @media print,
+   see CSS) is rebuilt fresh from the current state each time so it
+   never drifts from what's on the page.
+--------------------------------------------------------------------- */
+function buildPrintPage(includeBleed){
+  const root = document.getElementById('print-root');
+  root.innerHTML = '';
+  const suffix = state.canvasUnit === 'px' ? 'px' : state.canvasUnit;
+  const bleed = includeBleed ? (state.bleed || 0) : 0;
+  const totalW = state.canvasW + bleed*2, totalH = state.canvasH + bleed*2;
+
+  const styleTag = document.createElement('style');
+  styleTag.id = 'print-page-size';
+  styleTag.textContent = `@page{ size: ${fmtDim(totalW)}${suffix} ${fmtDim(totalH)}${suffix}; margin:0; }`;
+  root.appendChild(styleTag);
+
+  const page = document.createElement('div');
+  page.className = 'print-page';
+  page.style.width = fmtDim(totalW) + suffix;
+  page.style.height = fmtDim(totalH) + suffix;
+  page.style.background = state.bgColor;
+
+  // Elements stay authored in plain 0..canvasW/H coordinates; a trim
+  // wrapper inset by the bleed amount (mirroring #trim-frame on screen)
+  // is all that's needed to reveal that extra margin around them.
+  const trim = document.createElement('div');
+  trim.style.cssText = `position:absolute; left:${fx(bleed)}${suffix}; top:${fx(bleed)}${suffix}; ` +
+    `width:${fx(state.canvasW)}${suffix}; height:${fx(state.canvasH)}${suffix};`;
+  page.appendChild(trim);
+
+  state.elements.forEach(el => {
+    if(el.visible === false) return;
+    const box = document.createElement('div');
+    box.className = 'print-el';
+    box.style.left = fx(el.x) + suffix;
+    box.style.top = fx(el.y) + suffix;
+    box.style.width = fx(el.w) + suffix;
+    box.style.height = fx(el.h) + suffix;
+    if(el.rotation) box.style.transform = `rotate(${el.rotation}deg)`;
+
+    if(el.type === 'image' && el.src){
+      const clip = document.createElement('div'); clip.className = 'print-clip';
+      const img = document.createElement('img');
+      img.src = el.src;
+      img.style.objectFit = el.fit;
+      img.style.objectPosition = el.panX + '% ' + el.panY + '%';
+      img.style.transformOrigin = el.panX + '% ' + el.panY + '%';
+      img.style.transform = 'rotate(' + (el.imgRotation || 0) + 'deg) scale(' + ((el.zoom || 1) * rotationCoverScale(el.w, el.h, el.imgRotation || 0)) + ')';
+      clip.appendChild(img);
+      box.appendChild(clip);
+    } else if(el.type === 'text'){
+      ensureGoogleFont(el.googleFont);
+      const family = el.googleFont ? `"${el.googleFont}", ${el.fontFamily||'sans-serif'}` : (el.fontFamily||'sans-serif');
+      const vAlignCSS = { top:'flex-start', middle:'center', bottom:'flex-end', justify:'space-between' };
+      box.style.display = 'flex';
+      box.style.flexDirection = 'column';
+      box.style.justifyContent = vAlignCSS[el.vAlign] || 'flex-start';
+      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [el.content || ''];
+      paragraphs.forEach(p => {
+        const txt = document.createElement('div');
+        txt.className = 'print-text';
+        txt.textContent = p.length ? p : ' ';
+        txt.style.fontFamily = family;
+        txt.style.fontSize = refPx(el.fontSize) + suffix;
+        txt.style.lineHeight = el.lineHeight;
+        txt.style.letterSpacing = refPx(el.letterSpacing) + suffix;
+        txt.style.fontWeight = el.weight;
+        txt.style.fontStyle = el.italic ? 'italic' : 'normal';
+        txt.style.textAlign = el.align;
+        txt.style.color = el.color;
+        box.appendChild(txt);
+      });
+    }
+    trim.appendChild(box);
+  });
+
+  root.appendChild(page);
+}
+
+document.getElementById('export-pdf').addEventListener('click', () => {
+  const includeBleed = state.bleed > 0 && document.getElementById('export-bleed').checked;
+  buildPrintPage(includeBleed);
+  exportModal.classList.remove('show');
+  // Give Google Fonts / layout a beat to settle before the print
+  // dialog snapshots the page (fonts requested for the first time in
+  // buildPrintPage may still be loading).
+  document.fonts.ready.then(() => {
+    setTimeout(() => window.print(), 50);
+  });
+});
+
+/* ---------------------------------------------------------------------
+   THEME (dark / light) + brand dropdown
+--------------------------------------------------------------------- */
+const THEME_KEY = 'grid-studio-light-theme';
+const SUN_ICON = '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.94" y2="5.94"/><line x1="18.06" y1="18.06" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.94" y2="18.06"/><line x1="18.06" y1="5.94" x2="19.78" y2="4.22"/>';
+const MOON_ICON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+
+function applyTheme(isLight){
+  document.documentElement.classList.toggle('light-theme', isLight);
+  document.getElementById('theme-icon').innerHTML = isLight ? MOON_ICON : SUN_ICON;
+  document.getElementById('theme-label').textContent = isLight ? 'Dark mode' : 'Light mode';
+}
+function initTheme(){
+  let isLight = false;
+  try { isLight = localStorage.getItem(THEME_KEY) === '1'; } catch(e){}
+  applyTheme(isLight);
+}
+document.getElementById('menu-light').addEventListener('click', () => {
+  const isLight = !document.documentElement.classList.contains('light-theme');
+  applyTheme(isLight);
+  try { localStorage.setItem(THEME_KEY, isLight ? '1' : '0'); } catch(e){}
+  renderStage();
+});
+const brandBtn = document.getElementById('brand');
+const brandDropdown = document.getElementById('brand-dropdown');
+brandBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  brandDropdown.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if(!brandDropdown.classList.contains('open')) return;
+  if(e.target === brandBtn || brandBtn.contains(e.target) || brandDropdown.contains(e.target)) return;
+  brandDropdown.classList.remove('open');
+});
+
+/* ---------------------------------------------------------------------
+   PAGE VERSIONS — named snapshots of the whole page (grid + elements +
+   canvas), saved to localStorage so you can branch a layout into a few
+   variants and flip between them, independent of the linear undo stack.
+--------------------------------------------------------------------- */
+const VERSIONS_KEY = 'grid-studio-versions';
+function loadVersions(){
+  try { return JSON.parse(localStorage.getItem(VERSIONS_KEY) || '{}'); } catch(e){ return {}; }
+}
+function saveVersions(versions){
+  try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions)); } catch(e){}
+}
+function saveCurrentAsVersion(name){
+  const versions = loadVersions();
+  versions[name] = { savedAt: Date.now(), data: JSON.parse(snapshotState()) };
+  saveVersions(versions);
+}
+function loadVersion(name){
+  const versions = loadVersions();
+  const v = versions[name];
+  if(!v) return;
+  pushHistory();
+  restoreSnapshot(JSON.stringify(v.data));
+  toast('Loaded "' + name + '"');
+}
+function deleteVersion(name){
+  const versions = loadVersions();
+  delete versions[name];
+  saveVersions(versions);
+}
+function renderVersionList(){
+  const list = document.getElementById('version-list');
+  const empty = document.getElementById('version-empty');
+  list.innerHTML = '';
+  const versions = loadVersions();
+  const names = Object.keys(versions).sort((a,b) => versions[b].savedAt - versions[a].savedAt);
+  empty.style.display = names.length ? 'none' : 'block';
+  names.forEach(name => {
+    const row = document.createElement('div'); row.className = 'preset-item';
+    const pname = document.createElement('span'); pname.className = 'pname'; pname.textContent = name;
+    pname.addEventListener('click', () => { loadVersion(name); versionsModal.classList.remove('show'); });
+    const del = document.createElement('button'); del.textContent = 'Delete';
+    del.addEventListener('click', () => { deleteVersion(name); renderVersionList(); });
+    row.appendChild(pname); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+const saveVersionModal = document.getElementById('save-version-modal');
+const versionsModal = document.getElementById('versions-modal');
+document.getElementById('menu-save-version').addEventListener('click', () => {
+  brandDropdown.classList.remove('open');
+  document.getElementById('version-name-input').value = '';
+  saveVersionModal.classList.add('show');
+  document.getElementById('version-name-input').focus();
+});
+document.getElementById('version-save-cancel').addEventListener('click', () => saveVersionModal.classList.remove('show'));
+document.getElementById('version-save-confirm').addEventListener('click', () => {
+  const name = document.getElementById('version-name-input').value.trim() || ('Version ' + new Date().toLocaleString());
+  saveCurrentAsVersion(name);
+  saveVersionModal.classList.remove('show');
+  toast('Saved "' + name + '"');
+});
+document.getElementById('menu-versions').addEventListener('click', () => {
+  brandDropdown.classList.remove('open');
+  renderVersionList();
+  versionsModal.classList.add('show');
+});
+document.getElementById('versions-close').addEventListener('click', () => versionsModal.classList.remove('show'));
+
+document.getElementById('menu-undo').addEventListener('click', () => { brandDropdown.classList.remove('open'); undo(); });
+document.getElementById('menu-redo').addEventListener('click', () => { brandDropdown.classList.remove('open'); redo(); });
+
+/* ---------------------------------------------------------------------
+   INIT
+--------------------------------------------------------------------- */
+function init(){
+  initTheme();
+  wInput.value = state.canvasW; hInput.value = state.canvasH;
+  renderAll();
+}
+init();
+
+})();
+</script>
+</body>
+</html>
