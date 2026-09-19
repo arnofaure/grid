@@ -554,6 +554,7 @@
     <div class="topbar-group">
       <button class="btn ghost" id="btn-add-image">+ Image</button>
       <button class="btn ghost" id="btn-add-text">+ Text</button>
+      <button class="btn ghost" id="btn-add-shape">+ Shape</button>
     </div>
 
     <div id="spacer"></div>
@@ -571,6 +572,7 @@
       <div id="add-layer-wrap">
         <button class="add-layer-btn" id="btn-add-image-2"><span class="plus">+</span> Image</button>
         <button class="add-layer-btn" id="btn-add-text-2"><span class="plus">+</span> Text block</button>
+        <button class="add-layer-btn" id="btn-add-shape-2"><span class="plus">+</span> Shape</button>
       </div>
     </div>
 
@@ -1156,6 +1158,30 @@ function defaultTextElement(){
   };
 }
 
+function defaultShapeElement(shapeType){
+  const geo = computeGrid();
+  let x, y, w, h;
+  if(geo.mode === 'diagonal'){
+    w = geo.diagCellSize * 1.6; h = geo.diagCellSize * 1.6;
+    const pos = defaultDiagonalPlacement(geo, w, h);
+    x = pos.x; y = pos.y;
+  } else {
+    const c0 = geo.colBounds[0] || {start:state.grid.marginLeft, end:state.grid.marginLeft+200};
+    const c1 = geo.colBounds[Math.min(1, geo.colBounds.length-1)] || c0;
+    const r0 = geo.rowBounds[0] || {start:state.grid.marginTop, end:state.grid.marginTop+200};
+    const r1 = geo.rowBounds[Math.min(1, geo.rowBounds.length-1)] || r0;
+    x = c0.start; y = r0.start; w = c1.end-c0.start; h = r1.end-r0.start;
+  }
+  return {
+    id: uid(), type: 'shape', name: 'Shape',
+    x, y, w, h,
+    shapeType: shapeType || 'rect',
+    fillColor: '#4F9C8F', strokeColor: '#111111', strokeWidth: 0,
+    visible: true,
+    rotation: geo.mode === 'diagonal' ? geo.diagAngle : 0
+  };
+}
+
 function addElement(el){
   pushHistory();
   state.elements.push(el);
@@ -1535,6 +1561,7 @@ function renderElementPositions(){
     box.style.width = (el.w * pageScale) + 'px';
     box.style.height = (el.h * pageScale) + 'px';
     applyBoxTransform(box, el);
+    if(el.type === 'shape') applyShapeStyle(box, el);
   });
 }
 
@@ -1590,6 +1617,8 @@ function renderElements(){
       // browser can place the caret / select text instead of starting
       // a drag — see enterTextEditMode().
       box.addEventListener('dblclick', (e) => { e.stopPropagation(); enterTextEditMode(el, box); });
+    } else if(el.type === 'shape'){
+      applyShapeStyle(box, el);
     }
 
     box.addEventListener('pointerdown', (e) => onElementPointerDown(e, el));
@@ -1661,6 +1690,20 @@ function applyImageStyle(img, el){
   img.style.transformOrigin = el.panX + '% ' + el.panY + '%';
   const coverScale = rotationCoverScale(el.w, el.h, el.imgRotation || 0);
   img.style.transform = 'rotate(' + (el.imgRotation || 0) + 'deg) scale(' + ((el.zoom || 1) * coverScale) + ')';
+}
+
+// Shapes are plain filled/stroked boxes — rect/ellipse/diamond are all
+// the same .el-box with a different border-radius or clip-path, so
+// resize/rotate/drag/snap all keep working unmodified (they only ever
+// touch x/y/w/h and the rotation transform). Stroke width is stored in
+// the same "reference px" convention as font size (independent of the
+// canvas display unit), so it's scaled by pageScale the same way.
+function applyShapeStyle(box, el){
+  box.style.background = el.fillColor || 'transparent';
+  const sw = (el.strokeWidth || 0) * pageScale;
+  box.style.border = sw > 0.01 ? (sw + 'px solid ' + (el.strokeColor || '#000000')) : 'none';
+  box.style.borderRadius = el.shapeType === 'ellipse' ? '50%' : '0';
+  box.style.clipPath = el.shapeType === 'diamond' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'none';
 }
 
 /* ---------------------------------------------------------------------
@@ -1757,6 +1800,8 @@ function refreshElementVisuals(){
     } else if(el.type === 'image'){
       const img = box.querySelector('img');
       if(img) applyImageStyle(img, el);
+    } else if(el.type === 'shape'){
+      applyShapeStyle(box, el);
     }
   });
 }
@@ -2114,11 +2159,12 @@ function renderLayersList(){
 
     const icon = document.createElement('div');
     icon.className = 'layer-icon';
-    icon.innerHTML = el.type === 'image' ? imageIconSVG() : textIconSVG();
+    icon.innerHTML = el.type === 'image' ? imageIconSVG() : el.type === 'shape' ? shapeIconSVG() : textIconSVG();
 
+    const typeLabel = el.type === 'image' ? 'Image' : el.type === 'shape' ? 'Shape' : 'Text';
     const name = document.createElement('div');
     name.className = 'layer-name';
-    name.innerHTML = escapeHtml(el.name || (el.type==='image'?'Image':'Text')) + `<span class="layer-name-sub">${el.type === 'image' ? 'Image' : 'Text'}</span>`;
+    name.innerHTML = escapeHtml(el.name || typeLabel) + `<span class="layer-name-sub">${typeLabel}</span>`;
 
     const vis = document.createElement('div');
     vis.className = 'layer-vis-toggle';
@@ -2185,6 +2231,7 @@ function eyeOpenSVG(){ return `<svg width="14" height="14" viewBox="0 0 24 24" f
 function eyeClosedSVG(){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.6 21.6 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.78 3.82M14.12 14.12a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`; }
 function imageIconSVG(){ return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`; }
 function textIconSVG(){ return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`; }
+function shapeIconSVG(){ return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><circle cx="17" cy="7" r="4"/><path d="M17 15l5 6H12z"/></svg>`; }
 
 /* ---------------------------------------------------------------------
    PROPERTIES PANEL (right rail)
@@ -2316,6 +2363,7 @@ function renderPropsPanel(){
   body.appendChild(buildElementCommonSection(el));
   if(el.type === 'image') body.appendChild(buildImageSection(el));
   if(el.type === 'text') body.appendChild(buildTextSection(el));
+  if(el.type === 'shape') body.appendChild(buildShapeSection(el));
   body.appendChild(buildDeleteSection(el));
 }
 
@@ -2548,11 +2596,12 @@ function clampElementsToPage(){
   });
 }
 
+const TYPE_LABELS = { image: 'Image', text: 'Text block', shape: 'Shape' };
 function buildElementCommonSection(el){
-  const s = section(el.type === 'image' ? 'Image' : 'Text block');
+  const s = section(TYPE_LABELS[el.type] || 'Element');
   const nameInput = document.createElement('input');
   nameInput.type = 'text'; nameInput.className = 'name-field'; nameInput.value = el.name || '';
-  nameInput.placeholder = el.type === 'image' ? 'Image' : 'Text';
+  nameInput.placeholder = TYPE_LABELS[el.type] || 'Element';
   let namePushed = false;
   nameInput.addEventListener('focus', () => { pushHistory(); namePushed = true; });
   nameInput.addEventListener('input', () => {
@@ -2814,10 +2863,46 @@ function buildTextSection(el){
   return s;
 }
 
+function buildShapeSection(el){
+  const s = section('Appearance');
+
+  const typeCtl = document.createElement('div'); typeCtl.className = 'seg-control';
+  [['rect','Square'],['ellipse','Circle'],['diamond','Diamond']].forEach(([val,label]) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.className = (el.shapeType || 'rect') === val ? 'active' : '';
+    b.addEventListener('click', () => { pushHistory(); el.shapeType = val; refreshElementVisuals(); renderPropsPanel(); });
+    typeCtl.appendChild(b);
+  });
+  s.appendChild(fieldRow('Shape', typeCtl));
+
+  const fillRow = document.createElement('div'); fillRow.className = 'field-row';
+  const fillLabel = document.createElement('label'); fillLabel.textContent = 'Fill';
+  const fillCtl = document.createElement('div'); fillCtl.className = 'control';
+  const fillInput = document.createElement('input'); fillInput.type = 'color'; fillInput.value = el.fillColor || '#4F9C8F';
+  fillInput.addEventListener('focus', () => pushHistory());
+  fillInput.addEventListener('input', () => { el.fillColor = fillInput.value; refreshElementVisuals(); });
+  fillCtl.appendChild(fillInput); fillRow.appendChild(fillLabel); fillRow.appendChild(fillCtl);
+  s.appendChild(fillRow);
+
+  const strokeRow = document.createElement('div'); strokeRow.className = 'field-row';
+  const strokeLabel = document.createElement('label'); strokeLabel.textContent = 'Stroke';
+  const strokeCtl = document.createElement('div'); strokeCtl.className = 'control';
+  const strokeInput = document.createElement('input'); strokeInput.type = 'color'; strokeInput.value = el.strokeColor || '#111111';
+  strokeInput.addEventListener('focus', () => pushHistory());
+  strokeInput.addEventListener('input', () => { el.strokeColor = strokeInput.value; refreshElementVisuals(); });
+  strokeCtl.appendChild(strokeInput); strokeRow.appendChild(strokeLabel); strokeRow.appendChild(strokeCtl);
+  s.appendChild(strokeRow);
+
+  const strokeWCtl = numCombo(el.strokeWidth || 0, 0.5, 0, 60, v => { el.strokeWidth = v; refreshElementVisuals(); });
+  s.appendChild(fieldRow('Stroke width', strokeWCtl));
+
+  return s;
+}
+
 function buildDeleteSection(el){
   const s = section('');
   s.querySelector('h3').remove();
-  const btn = document.createElement('button'); btn.className = 'danger-btn'; btn.textContent = 'Delete ' + (el.type === 'image' ? 'image' : 'text block');
+  const btn = document.createElement('button'); btn.className = 'danger-btn'; btn.textContent = 'Delete ' + (TYPE_LABELS[el.type] || 'element').toLowerCase();
   btn.addEventListener('click', () => deleteElement(el.id));
   s.appendChild(btn);
   return s;
@@ -2930,6 +3015,8 @@ document.getElementById('btn-add-image').addEventListener('click', () => addElem
 document.getElementById('btn-add-image-2').addEventListener('click', () => addElement(defaultImageElement()));
 document.getElementById('btn-add-text').addEventListener('click', () => addElement(defaultTextElement()));
 document.getElementById('btn-add-text-2').addEventListener('click', () => addElement(defaultTextElement()));
+document.getElementById('btn-add-shape').addEventListener('click', () => addElement(defaultShapeElement('rect')));
+document.getElementById('btn-add-shape-2').addEventListener('click', () => addElement(defaultShapeElement('rect')));
 
 document.getElementById('page').addEventListener('pointerdown', (e) => {
   if(e.target.id === 'page' || e.target.id === 'grid-overlay' || e.target.id === 'elements-layer'){
@@ -3056,6 +3143,8 @@ async function exportPNG(includeGuides, transparent, includeBleed){
       await drawImageFitted(ctx, el, x, y, w, h);
     } else if(el.type === 'text'){
       await drawTextElement(ctx, el, x, y, w, h, scale);
+    } else if(el.type === 'shape'){
+      drawShapeElement(ctx, el, x, y, w, h, scale);
     }
     ctx.restore();
   }
@@ -3126,6 +3215,27 @@ function drawImageFitted(ctx, el, x, y, w, h){
     img.onerror = () => resolve();
     img.src = el.src;
   });
+}
+
+function shapePath(ctx, el, x, y, w, h){
+  ctx.beginPath();
+  if(el.shapeType === 'ellipse'){
+    ctx.ellipse(x+w/2, y+h/2, w/2, h/2, 0, 0, Math.PI*2);
+  } else if(el.shapeType === 'diamond'){
+    ctx.moveTo(x+w/2, y); ctx.lineTo(x+w, y+h/2); ctx.lineTo(x+w/2, y+h); ctx.lineTo(x, y+h/2); ctx.closePath();
+  } else {
+    ctx.rect(x, y, w, h);
+  }
+}
+function drawShapeElement(ctx, el, x, y, w, h, scale){
+  shapePath(ctx, el, x, y, w, h);
+  if(el.fillColor && el.fillColor !== 'transparent'){ ctx.fillStyle = el.fillColor; ctx.fill(); }
+  const sw = (el.strokeWidth || 0) * scale;
+  if(sw > 0.01){
+    ctx.lineWidth = sw;
+    ctx.strokeStyle = el.strokeColor || '#000000';
+    ctx.stroke();
+  }
 }
 
 async function drawTextElement(ctx, el, x, y, w, h, scale){
@@ -3296,6 +3406,27 @@ function buildExportSVG(includeGuides, transparent, includeBleed){
       });
       fo.appendChild(outer);
       target.appendChild(fo);
+    } else if(el.type === 'shape'){
+      let shapeEl;
+      if(el.shapeType === 'ellipse'){
+        shapeEl = doc.createElementNS(SVGNS, 'ellipse');
+        shapeEl.setAttribute('cx', fx(el.x + el.w/2)); shapeEl.setAttribute('cy', fx(el.y + el.h/2));
+        shapeEl.setAttribute('rx', fx(el.w/2)); shapeEl.setAttribute('ry', fx(el.h/2));
+      } else if(el.shapeType === 'diamond'){
+        shapeEl = doc.createElementNS(SVGNS, 'polygon');
+        const pts = [[el.x+el.w/2, el.y], [el.x+el.w, el.y+el.h/2], [el.x+el.w/2, el.y+el.h], [el.x, el.y+el.h/2]];
+        shapeEl.setAttribute('points', pts.map(p => fx(p[0])+','+fx(p[1])).join(' '));
+      } else {
+        shapeEl = doc.createElementNS(SVGNS, 'rect');
+        shapeEl.setAttribute('x', fx(el.x)); shapeEl.setAttribute('y', fx(el.y));
+        shapeEl.setAttribute('width', fx(el.w)); shapeEl.setAttribute('height', fx(el.h));
+      }
+      shapeEl.setAttribute('fill', el.fillColor || 'none');
+      if(el.strokeWidth > 0){
+        shapeEl.setAttribute('stroke', el.strokeColor || '#000000');
+        shapeEl.setAttribute('stroke-width', el.strokeWidth);
+      }
+      target.appendChild(shapeEl);
     }
   });
 
@@ -3368,6 +3499,14 @@ document.getElementById('export-png').addEventListener('click', async () => {
    see CSS) is rebuilt fresh from the current state each time so it
    never drifts from what's on the page.
 --------------------------------------------------------------------- */
+function applyShapeStylePrint(box, el, suffix){
+  box.style.background = el.fillColor || 'transparent';
+  const sw = refPx(el.strokeWidth || 0);
+  box.style.border = sw > 0.01 ? (sw + suffix + ' solid ' + (el.strokeColor || '#000000')) : 'none';
+  box.style.borderRadius = el.shapeType === 'ellipse' ? '50%' : '0';
+  box.style.clipPath = el.shapeType === 'diamond' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'none';
+}
+
 function buildPrintPage(includeBleed){
   const root = document.getElementById('print-root');
   root.innerHTML = '';
@@ -3436,6 +3575,8 @@ function buildPrintPage(includeBleed){
         txt.style.color = el.color;
         box.appendChild(txt);
       });
+    } else if(el.type === 'shape'){
+      applyShapeStylePrint(box, el, suffix);
     }
     trim.appendChild(box);
   });
