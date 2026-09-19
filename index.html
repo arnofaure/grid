@@ -44,7 +44,6 @@
     --bg-rgb: 236,236,234;
   }
   *{box-sizing:border-box;}
-  [hidden]{ display:none !important; }
   html,body{
     margin:0; padding:0; height:100%; width:100%;
     background:var(--bg); color:var(--text);
@@ -226,23 +225,6 @@
   #page{
     position:relative; box-shadow:0 0 0 1px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);
     background:#ffffff; overflow:hidden; flex:0 0 auto;
-  }
-  #feed-page{
-    position:relative; box-shadow:0 0 0 1px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);
-    background:#111; flex:0 0 auto;
-  }
-  .feed-tile{
-    position:absolute; overflow:hidden; background:#1c1c1c; cursor:pointer;
-    outline:1px solid transparent;
-  }
-  .feed-tile:hover{ outline-color:rgba(79,156,143,0.55); }
-  .feed-tile.selected{ outline:1.5px solid var(--grid-line); z-index:2; }
-  .feed-tile.crop-mode{ cursor:grab; outline:1.5px solid var(--margin-line); z-index:5; }
-  .feed-tile.crop-mode:active{ cursor:grabbing; }
-  .feed-tile img{ width:100%; height:100%; display:block; pointer-events:none; user-select:none; -webkit-user-drag:none; }
-  .feed-tile-empty{
-    width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-    color:#777; font-size:20px; background:repeating-linear-gradient(45deg, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 8px, rgba(255,255,255,0.02) 8px, rgba(255,255,255,0.02) 16px);
   }
   /* #page is the full bleed box (trim + bleed on every side); #trim-frame
      is inset within it by the bleed amount and holds the actual grid/
@@ -544,14 +526,7 @@
       </div>
     </div>
 
-    <div class="seg-control" id="mode-switch" style="flex:0 0 auto;">
-      <button id="mode-btn-layout" class="active">Page layout</button>
-      <button id="mode-btn-feed">Feed grid</button>
-    </div>
-
-    <div class="topbar-sep layout-only"></div>
-
-    <div class="topbar-group layout-only">
+    <div class="topbar-group">
       <label class="tb-label">Page</label>
       <input type="number" id="canvas-w" class="dim-field" value="1600" min="10" max="20000" step="1">
       <span id="dim-x">&times;</span>
@@ -564,7 +539,7 @@
       </select>
     </div>
 
-    <select id="preset-size" class="tb-select layout-only">
+    <select id="preset-size" class="tb-select">
       <option value="">Page presets&hellip;</option>
       <option value="1600|2000|px">Poster 4:5 — 1600×2000 px</option>
       <option value="1920|1080|px">Widescreen 16:9 — 1920×1080 px</option>
@@ -574,22 +549,12 @@
       <option value="8.5|11|in">US Letter — 8.5×11 in</option>
     </select>
 
-    <div class="topbar-sep layout-only"></div>
+    <div class="topbar-sep"></div>
 
-    <div class="topbar-group layout-only">
+    <div class="topbar-group">
       <button class="btn ghost" id="btn-add-image">+ Image</button>
       <button class="btn ghost" id="btn-add-text">+ Text</button>
       <button class="btn ghost" id="btn-add-shape">+ Shape</button>
-    </div>
-
-    <div class="topbar-sep feed-only" hidden></div>
-
-    <div class="topbar-group feed-only" hidden>
-      <button class="btn ghost" id="btn-feed-add-images">+ Add images</button>
-      <label class="tb-label">Columns</label>
-      <input type="number" id="feed-cols" class="dim-field" value="3" min="1" max="12" step="1" style="width:44px;">
-      <label class="tb-label">Gap</label>
-      <input type="number" id="feed-gap" class="dim-field" value="4" min="0" max="200" step="1" style="width:44px;">
     </div>
 
     <div id="spacer"></div>
@@ -605,14 +570,9 @@
       <div class="rail-header"><span>LAYERS</span></div>
       <div id="layers-list"></div>
       <div id="add-layer-wrap">
-        <div id="layout-add-buttons" class="layout-only">
-          <button class="add-layer-btn" id="btn-add-image-2"><span class="plus">+</span> Image</button>
-          <button class="add-layer-btn" id="btn-add-text-2"><span class="plus">+</span> Text block</button>
-          <button class="add-layer-btn" id="btn-add-shape-2"><span class="plus">+</span> Shape</button>
-        </div>
-        <div id="feed-add-buttons" class="feed-only" hidden>
-          <button class="add-layer-btn" id="btn-feed-add-images-2"><span class="plus">+</span> Add images</button>
-        </div>
+        <button class="add-layer-btn" id="btn-add-image-2"><span class="plus">+</span> Image</button>
+        <button class="add-layer-btn" id="btn-add-text-2"><span class="plus">+</span> Text block</button>
+        <button class="add-layer-btn" id="btn-add-shape-2"><span class="plus">+</span> Shape</button>
       </div>
     </div>
 
@@ -625,9 +585,8 @@
             <div id="grid-handles"></div>
           </div>
         </div>
-        <div id="feed-page" hidden></div>
       </div>
-      <div id="page-strip" class="layout-only"></div>
+      <div id="page-strip"></div>
     </div>
 
     <div id="right-rail">
@@ -640,7 +599,6 @@
 
 <input type="file" id="file-input" class="hidden-file-input" accept="image/*">
 <input type="file" id="project-file-input" class="hidden-file-input" accept="application/json,.json">
-<input type="file" id="feed-file-input" class="hidden-file-input" accept="image/*" multiple>
 <div id="toast"></div>
 
 <div class="modal-backdrop" id="export-modal">
@@ -3675,7 +3633,6 @@ function downloadBlob(blob, filename){
 
 const exportModal = document.getElementById('export-modal');
 document.getElementById('btn-export').addEventListener('click', () => {
-  if(appMode === 'feed'){ exportFeedPNG(); return; }
   document.getElementById('export-bleed-row').hidden = !(state.bleed > 0);
   exportModal.classList.add('show');
 });
@@ -3926,8 +3883,7 @@ function exportProjectFile(){
   const doc = {
     app: 'grid-studio', fileVersion: PROJECT_FILE_VERSION,
     currentPageIndex: state.currentPageIndex,
-    pages: state.pages,
-    feed: state.feed
+    pages: state.pages
   };
   const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
   downloadBlob(blob, 'grid-studio-project.json');
@@ -3943,11 +3899,9 @@ function importProjectFile(file){
     state.pages = doc.pages;
     state.currentPageIndex = clamp(doc.currentPageIndex || 0, 0, state.pages.length - 1);
     loadPageData(state.pages[state.currentPageIndex]);
-    state.feed = doc.feed || { cols:3, gap:4, cellSize:360, items:[], selectedId:null };
     undoStack = []; redoStack = [];
     wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
     applyUnitStep();
-    if(appMode === 'feed') setAppMode('layout');
     renderAll();
     renderPageStrip();
     toast('Project loaded');
@@ -3971,372 +3925,6 @@ projectFileInput.addEventListener('change', () => {
 
 document.getElementById('menu-undo').addEventListener('click', () => { brandDropdown.classList.remove('open'); undo(); });
 document.getElementById('menu-redo').addEventListener('click', () => { brandDropdown.classList.remove('open'); redo(); });
-
-/* ---------------------------------------------------------------------
-   FEED GRID — a separate, simpler mode for laying out an Instagram-style
-   image feed: a fixed number of columns, square tiles, drag-reorderable,
-   each with the same pan/zoom crop the page-layout image tool uses. It
-   deliberately doesn't touch state.elements/state.grid at all — it's a
-   second, independent little document (state.feed) that reuses the same
-   left/right rail DOM (#layers-list, #add-layer-wrap, #props-body) by
-   swapping what's rendered into them, so the app shell (topbar brand
-   menu, theme, toasts...) isn't duplicated.
---------------------------------------------------------------------- */
-let appMode = 'layout';
-state.feed = { cols: 3, gap: 4, cellSize: 360, items: [], selectedId: null };
-
-function feedUid(){ return 'f' + Math.random().toString(36).slice(2,9); }
-
-function setAppMode(mode){
-  if(mode === appMode) return;
-  appMode = mode;
-  document.getElementById('mode-btn-layout').classList.toggle('active', mode === 'layout');
-  document.getElementById('mode-btn-feed').classList.toggle('active', mode === 'feed');
-  document.querySelectorAll('.layout-only').forEach(el => { el.hidden = mode !== 'layout'; });
-  document.querySelectorAll('.feed-only').forEach(el => { el.hidden = mode !== 'feed'; });
-  document.getElementById('page').hidden = mode !== 'layout';
-  document.getElementById('feed-page').hidden = mode !== 'feed';
-  if(mode === 'feed'){
-    document.getElementById('feed-cols').value = state.feed.cols;
-    document.getElementById('feed-gap').value = state.feed.gap;
-    renderFeedAll();
-  } else {
-    renderAll();
-  }
-}
-document.getElementById('mode-btn-layout').addEventListener('click', () => setAppMode('layout'));
-document.getElementById('mode-btn-feed').addEventListener('click', () => setAppMode('feed'));
-
-let feedScale = 1;
-function renderFeedStage(){
-  const f = state.feed;
-  const cols = f.items.length ? Math.max(1, f.cols || 1) : 1;
-  const rows = Math.max(1, Math.ceil((f.items.length || 1) / cols));
-  const totalW = cols*f.cellSize + (cols-1)*f.gap;
-  const totalH = rows*f.cellSize + (rows-1)*f.gap;
-  const wrap = document.getElementById('stage-wrap');
-  const availW = wrap.clientWidth - 72, availH = wrap.clientHeight - 72;
-  feedScale = Math.min(availW/totalW, availH/totalH, 3);
-  const page = document.getElementById('feed-page');
-  page.style.width = (totalW*feedScale) + 'px';
-  page.style.height = (totalH*feedScale) + 'px';
-}
-
-function applyFeedTileStyle(tile, item){
-  applyImageStyle(tile.querySelector('img'), { fit:'cover', panX:item.panX, panY:item.panY, zoom:item.zoom, imgRotation:0, w:state.feed.cellSize, h:state.feed.cellSize });
-}
-
-function renderFeedTiles(){
-  const f = state.feed;
-  const page = document.getElementById('feed-page');
-  page.innerHTML = '';
-  const cols = Math.max(1, f.cols || 1);
-  const items = f.items.length ? f.items : [{ id:'__placeholder', src:null, panX:50, panY:50, zoom:1, __placeholder:true }];
-  items.forEach((item, i) => {
-    const col = i % cols, row = Math.floor(i / cols);
-    const tile = document.createElement('div');
-    tile.className = 'feed-tile' + (item.id === f.selectedId ? ' selected' : '');
-    tile.id = 'feedtile-' + item.id;
-    tile.style.left = (col*(f.cellSize+f.gap)*feedScale) + 'px';
-    tile.style.top = (row*(f.cellSize+f.gap)*feedScale) + 'px';
-    tile.style.width = (f.cellSize*feedScale) + 'px';
-    tile.style.height = (f.cellSize*feedScale) + 'px';
-    if(item.__placeholder){
-      const ph = document.createElement('div'); ph.className = 'feed-tile-empty'; ph.textContent = '+';
-      tile.appendChild(ph);
-      tile.addEventListener('click', () => feedFileInput.click());
-    } else if(item.src){
-      const img = document.createElement('img'); img.src = item.src;
-      tile.appendChild(img);
-      applyFeedTileStyle(tile, item);
-      tile.addEventListener('click', (e) => { e.stopPropagation(); selectFeedItem(item.id); });
-      tile.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleFeedCropMode(item, tile); });
-    } else {
-      const ph = document.createElement('div'); ph.className = 'feed-tile-empty'; ph.textContent = '…';
-      tile.appendChild(ph);
-    }
-    page.appendChild(tile);
-  });
-}
-
-function renderFeedAll(){
-  renderFeedStage();
-  renderFeedTiles();
-  renderFeedLeftRail();
-  renderFeedRightRail();
-}
-
-function selectFeedItem(id){
-  state.feed.selectedId = id;
-  document.querySelectorAll('.feed-tile').forEach(t => t.classList.toggle('selected', t.id === 'feedtile-'+id));
-  renderFeedRightRail();
-  renderFeedLeftRail();
-}
-
-function feedImageIconStyle(item){
-  return item.src ? `background-image:url(${item.src}); background-size:cover; background-position:center;` : '';
-}
-function renderFeedLeftRail(){
-  const list = document.getElementById('layers-list');
-  list.innerHTML = '';
-  const f = state.feed;
-  if(f.items.length === 0){
-    const empty = document.createElement('div');
-    empty.style.cssText = 'padding:24px 10px; color:var(--text-dim); font-size:11.5px; line-height:1.6; text-align:center;';
-    empty.textContent = 'No images yet. Add some below.';
-    list.appendChild(empty);
-  }
-  f.items.forEach((item, i) => {
-    const row = document.createElement('div');
-    row.className = 'layer-row' + (item.id === f.selectedId ? ' selected' : '');
-    const grip = document.createElement('div'); grip.className = 'layer-grip'; grip.title = 'Drag to reorder'; grip.innerHTML = gripSVG();
-    grip.addEventListener('pointerdown', (e) => startFeedItemDrag(e, item.id, row));
-    const icon = document.createElement('div'); icon.className = 'layer-icon';
-    icon.style.cssText += feedImageIconStyle(item);
-    if(!item.src) icon.innerHTML = imageIconSVG();
-    const name = document.createElement('div'); name.className = 'layer-name';
-    name.innerHTML = 'Image ' + (i+1) + `<span class="layer-name-sub">Feed tile</span>`;
-    const del = document.createElement('div'); del.className = 'layer-vis-toggle'; del.title = 'Remove';
-    del.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-    del.addEventListener('click', (e) => { e.stopPropagation(); removeFeedItem(item.id); });
-    row.appendChild(grip); row.appendChild(icon); row.appendChild(name); row.appendChild(del);
-    row.addEventListener('click', () => selectFeedItem(item.id));
-    list.appendChild(row);
-  });
-}
-function startFeedItemDrag(e, itemId, row){
-  e.stopPropagation();
-  row.classList.add('dragging');
-  const list = document.getElementById('layers-list');
-  function onMove(ev){
-    const rows = [...list.querySelectorAll('.layer-row')];
-    const target = rows.find(r => {
-      if(r === row) return false;
-      const rect = r.getBoundingClientRect();
-      return ev.clientY >= rect.top && ev.clientY <= rect.bottom;
-    });
-    if(target){
-      const targetIdx = rows.indexOf(target);
-      const fromIdx = state.feed.items.findIndex(it => it.id === itemId);
-      const toIdx = targetIdx;
-      if(fromIdx !== -1 && fromIdx !== toIdx){
-        const [moved] = state.feed.items.splice(fromIdx, 1);
-        state.feed.items.splice(toIdx, 0, moved);
-        renderFeedLeftRail();
-        renderFeedTiles();
-        const newRow = [...list.querySelectorAll('.layer-row')][toIdx];
-        if(newRow) newRow.classList.add('dragging');
-      }
-    }
-  }
-  function onUp(){
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.querySelectorAll('.layer-row.dragging').forEach(r => r.classList.remove('dragging'));
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-}
-
-function renderFeedRightRail(){
-  const body = document.getElementById('props-body');
-  const title = document.getElementById('props-title');
-  body.innerHTML = '';
-  const f = state.feed;
-  const item = f.selectedId ? f.items.find(it => it.id === f.selectedId) : null;
-  if(!item){
-    title.textContent = 'FEED GRID';
-    const s = section('Layout');
-    const colsCtl = numCombo(f.cols, 1, 1, 12, v => { f.cols = Math.round(v); renderFeedAll(); document.getElementById('feed-cols').value = f.cols; });
-    s.appendChild(fieldRow('Columns', colsCtl));
-    const gapCtl = numCombo(f.gap, 1, 0, undefined, v => { f.gap = v; renderFeedAll(); document.getElementById('feed-gap').value = f.gap; });
-    s.appendChild(fieldRow('Gap (px)', gapCtl));
-    const sizeCtl = numCombo(f.cellSize, 10, 40, undefined, v => { f.cellSize = v; renderFeedAll(); });
-    s.appendChild(fieldRow('Tile size (px)', sizeCtl));
-    body.appendChild(s);
-    const hint = document.createElement('div');
-    hint.style.cssText = 'padding:0 12px; color:var(--text-dim); font-size:10.5px; line-height:1.6;';
-    hint.textContent = 'Select a tile to pan/zoom its image, drag the grip in the list to reorder, or double-click a tile on the board.';
-    body.appendChild(hint);
-    return;
-  }
-  title.textContent = 'FEED TILE';
-  const s = section('Image');
-  const panGrid = document.createElement('div'); panGrid.className = 'field-grid2';
-  const panXCtl = numCombo(item.panX, 5, 0, 100, v => { item.panX = v; refreshFeedTileVisual(item); });
-  const panYCtl = numCombo(item.panY, 5, 0, 100, v => { item.panY = v; refreshFeedTileVisual(item); });
-  const cellX = document.createElement('div'); cellX.appendChild(Object.assign(document.createElement('label'),{textContent:'Pan X %'})); cellX.appendChild(panXCtl);
-  const cellY = document.createElement('div'); cellY.appendChild(Object.assign(document.createElement('label'),{textContent:'Pan Y %'})); cellY.appendChild(panYCtl);
-  panGrid.appendChild(cellX); panGrid.appendChild(cellY);
-  s.appendChild(panGrid);
-  const zoomCtl = numCombo(item.zoom, 0.1, 1, 5, v => { item.zoom = v; refreshFeedTileVisual(item); });
-  s.appendChild(fieldRow('Zoom', zoomCtl));
-  const replaceBtn = document.createElement('button');
-  replaceBtn.className = 'btn ghost'; replaceBtn.style.width = '100%'; replaceBtn.style.justifyContent = 'center'; replaceBtn.style.marginTop = '8px';
-  replaceBtn.textContent = 'Replace image…';
-  replaceBtn.addEventListener('click', () => { pendingFeedReplaceId = item.id; feedFileInput.value = ''; feedFileInput.click(); });
-  s.appendChild(replaceBtn);
-  body.appendChild(s);
-  const del = document.createElement('div'); del.className = 'props-section';
-  const delBtn = document.createElement('button'); delBtn.className = 'danger-btn'; delBtn.textContent = 'Remove tile';
-  delBtn.addEventListener('click', () => removeFeedItem(item.id));
-  del.appendChild(delBtn);
-  body.appendChild(del);
-}
-function refreshFeedTileVisual(item){
-  const tile = document.getElementById('feedtile-' + item.id);
-  if(tile) applyFeedTileStyle(tile, item);
-}
-
-function removeFeedItem(id){
-  const idx = state.feed.items.findIndex(it => it.id === id);
-  if(idx === -1) return;
-  state.feed.items.splice(idx, 1);
-  if(state.feed.selectedId === id) state.feed.selectedId = null;
-  renderFeedAll();
-}
-
-let pendingFeedReplaceId = null;
-const feedFileInput = document.getElementById('feed-file-input');
-document.getElementById('btn-feed-add-images').addEventListener('click', () => { pendingFeedReplaceId = null; feedFileInput.value = ''; feedFileInput.click(); });
-document.getElementById('btn-feed-add-images-2').addEventListener('click', () => { pendingFeedReplaceId = null; feedFileInput.value = ''; feedFileInput.click(); });
-feedFileInput.addEventListener('change', () => {
-  const files = [...feedFileInput.files];
-  if(!files.length) return;
-  if(pendingFeedReplaceId){
-    const item = state.feed.items.find(it => it.id === pendingFeedReplaceId);
-    const reader = new FileReader();
-    reader.onload = () => { if(item){ item.src = reader.result; renderFeedAll(); } };
-    reader.readAsDataURL(files[0]);
-    pendingFeedReplaceId = null;
-    return;
-  }
-  let remaining = files.length;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      state.feed.items.push({ id: feedUid(), src: reader.result, panX:50, panY:50, zoom:1 });
-      remaining--;
-      if(remaining === 0) renderFeedAll();
-    };
-    reader.readAsDataURL(file);
-  });
-});
-
-document.getElementById('feed-cols').addEventListener('change', (e) => {
-  const v = Math.max(1, Math.round(parseFloat(e.target.value) || 1));
-  state.feed.cols = v; e.target.value = v;
-  renderFeedAll();
-});
-document.getElementById('feed-gap').addEventListener('change', (e) => {
-  const v = Math.max(0, parseFloat(e.target.value) || 0);
-  state.feed.gap = v; e.target.value = v;
-  renderFeedAll();
-});
-
-// Pan/zoom a feed tile's image — same interaction as the page-layout
-// image crop tool (drag to pan, scroll to zoom), reimplemented standalone
-// since feed items aren't state.elements and don't have pushHistory tied
-// to them (the feed board isn't part of the page-layout undo stack).
-let activeFeedCropId = null;
-function toggleFeedCropMode(item, tile){
-  if(activeFeedCropId === item.id){ exitFeedCropMode(tile); return; }
-  if(activeFeedCropId){ const prev = document.getElementById('feedtile-' + activeFeedCropId); if(prev) exitFeedCropMode(prev); }
-  activeFeedCropId = item.id;
-  tile.classList.add('crop-mode');
-  function onWheel(e){
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    item.zoom = clamp(round4((item.zoom || 1) + delta), 1, 5);
-    applyFeedTileStyle(tile, item);
-    if(state.feed.selectedId === item.id) renderFeedRightRail();
-  }
-  function onPanDown(e){
-    e.stopPropagation();
-    const startX = e.clientX, startY = e.clientY;
-    const origPanX = item.panX, origPanY = item.panY;
-    const rect = tile.getBoundingClientRect();
-    const zoom = item.zoom || 1;
-    function onMove(ev){
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      item.panX = clamp(round4(origPanX - (dx/rect.width)*100/zoom), 0, 100);
-      item.panY = clamp(round4(origPanY - (dy/rect.height)*100/zoom), 0, 100);
-      applyFeedTileStyle(tile, item);
-    }
-    function onUp(){
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      if(state.feed.selectedId === item.id) renderFeedRightRail();
-    }
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-  }
-  tile.addEventListener('wheel', onWheel, { passive:false });
-  tile.addEventListener('pointerdown', onPanDown);
-  tile.__cropWheel = onWheel; tile.__cropDown = onPanDown;
-  function onDblExit(e){ e.stopPropagation(); exitFeedCropMode(tile); }
-  tile.__cropExit = onDblExit;
-  tile.addEventListener('dblclick', onDblExit);
-}
-function exitFeedCropMode(tile){
-  tile.classList.remove('crop-mode');
-  if(tile.__cropWheel) tile.removeEventListener('wheel', tile.__cropWheel);
-  if(tile.__cropDown) tile.removeEventListener('pointerdown', tile.__cropDown);
-  if(tile.__cropExit) tile.removeEventListener('dblclick', tile.__cropExit);
-  activeFeedCropId = null;
-}
-
-function exportFeedPNG(){
-  const f = state.feed;
-  if(!f.items.length){ toast('Add images first'); return; }
-  const EXPORT_TILE = 640; // fixed export resolution per tile, independent of the on-screen zoom level
-  const cols = Math.max(1, f.cols || 1);
-  const rows = Math.max(1, Math.ceil(f.items.length / cols));
-  const scale = EXPORT_TILE / f.cellSize;
-  const gap = f.gap * scale;
-  const totalW = cols*EXPORT_TILE + (cols-1)*gap;
-  const totalH = rows*EXPORT_TILE + (rows-1)*gap;
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(totalW); canvas.height = Math.round(totalH);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  let loaded = 0;
-  const total = f.items.filter(it => it.src).length;
-  if(total === 0){ toast('Add images first'); return; }
-  f.items.forEach((item, i) => {
-    if(!item.src) return;
-    const col = i % cols, row = Math.floor(i / cols);
-    const x = col*(EXPORT_TILE+gap), y = row*(EXPORT_TILE+gap);
-    const img = new Image();
-    img.onload = () => {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x, y, EXPORT_TILE, EXPORT_TILE); ctx.clip();
-      const iw = img.naturalWidth, ih = img.naturalHeight;
-      const boxRatio = 1, imgRatio = iw/ih;
-      let dw, dh, dx, dy;
-      if(imgRatio > boxRatio){ dh = EXPORT_TILE; dw = EXPORT_TILE*imgRatio; dx = x - (dw-EXPORT_TILE)*(item.panX/100); dy = y; }
-      else { dw = EXPORT_TILE; dh = EXPORT_TILE/imgRatio; dx = x; dy = y - (dh-EXPORT_TILE)*(item.panY/100); }
-      const zoom = item.zoom || 1;
-      if(zoom !== 1){
-        const pivotX = x + EXPORT_TILE*(item.panX/100), pivotY = y + EXPORT_TILE*(item.panY/100);
-        const fxr = (pivotX-dx)/dw, fyr = (pivotY-dy)/dh;
-        const dw2 = dw*zoom, dh2 = dh*zoom;
-        dx = pivotX - fxr*dw2; dy = pivotY - fyr*dh2;
-        dw = dw2; dh = dh2;
-      }
-      ctx.drawImage(img, dx, dy, dw, dh);
-      ctx.restore();
-      loaded++;
-      if(loaded === total){
-        canvas.toBlob(blob => { downloadBlob(blob, `feed-grid-${canvas.width}x${canvas.height}.png`); toast('Feed grid exported'); });
-      }
-    };
-    img.onerror = () => { loaded++; };
-    img.src = item.src;
-  });
-}
-
-window.addEventListener('resize', () => { if(appMode === 'feed') renderFeedStage(), renderFeedTiles(); });
 
 /* ---------------------------------------------------------------------
    INIT
