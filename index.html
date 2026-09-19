@@ -514,6 +514,15 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           Page versions…
         </button>
+        <div class="tb-sep-h"></div>
+        <button class="tb-btn" id="menu-save-project">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save project as file…
+        </button>
+        <button class="tb-btn" id="menu-open-project">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Open project…
+        </button>
       </div>
     </div>
 
@@ -587,6 +596,7 @@
 </div>
 
 <input type="file" id="file-input" class="hidden-file-input" accept="image/*">
+<input type="file" id="project-file-input" class="hidden-file-input" accept="application/json,.json">
 <div id="toast"></div>
 
 <div class="modal-backdrop" id="export-modal">
@@ -3549,6 +3559,59 @@ document.getElementById('menu-versions').addEventListener('click', () => {
   versionsModal.classList.add('show');
 });
 document.getElementById('versions-close').addEventListener('click', () => versionsModal.classList.remove('show'));
+
+/* ---------------------------------------------------------------------
+   PROJECT SAVE / OPEN — the whole document (every page) written out as
+   a portable .json file, independent of localStorage (which is tied to
+   one browser). Complements page versions (quick localStorage branches)
+   with a real file you can back up, move to another machine, or hand
+   to someone else, and re-open exactly as left.
+--------------------------------------------------------------------- */
+const PROJECT_FILE_VERSION = 1;
+function exportProjectFile(){
+  syncCurrentPageIntoArray();
+  const doc = {
+    app: 'grid-studio', fileVersion: PROJECT_FILE_VERSION,
+    currentPageIndex: state.currentPageIndex,
+    pages: state.pages
+  };
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'grid-studio-project.json');
+  toast('Project saved');
+}
+function importProjectFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    let doc;
+    try { doc = JSON.parse(reader.result); }
+    catch(e){ toast('Could not read this file'); return; }
+    if(!doc || !Array.isArray(doc.pages) || !doc.pages.length){ toast('Not a Grid Studio project file'); return; }
+    state.pages = doc.pages;
+    state.currentPageIndex = clamp(doc.currentPageIndex || 0, 0, state.pages.length - 1);
+    loadPageData(state.pages[state.currentPageIndex]);
+    undoStack = []; redoStack = [];
+    wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
+    applyUnitStep();
+    renderAll();
+    renderPageStrip();
+    toast('Project loaded');
+  };
+  reader.readAsText(file);
+}
+const projectFileInput = document.getElementById('project-file-input');
+document.getElementById('menu-save-project').addEventListener('click', () => {
+  brandDropdown.classList.remove('open');
+  exportProjectFile();
+});
+document.getElementById('menu-open-project').addEventListener('click', () => {
+  brandDropdown.classList.remove('open');
+  projectFileInput.value = '';
+  projectFileInput.click();
+});
+projectFileInput.addEventListener('change', () => {
+  const file = projectFileInput.files[0];
+  if(file) importProjectFile(file);
+});
 
 document.getElementById('menu-undo').addEventListener('click', () => { brandDropdown.classList.remove('open'); undo(); });
 document.getElementById('menu-redo').addEventListener('click', () => { brandDropdown.classList.remove('open'); redo(); });
