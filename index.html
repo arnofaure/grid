@@ -386,6 +386,16 @@
   }
   input[type="color"]::-webkit-color-swatch{ border:none; border-radius:2px; }
 
+  .anchor-plus{ display:grid; grid-template-columns:repeat(3,26px); grid-template-rows:repeat(3,26px); gap:3px; }
+  .anchor-plus button{
+    background:transparent; border:0.5px solid var(--border); border-radius:2px;
+    cursor:pointer; color:var(--text-muted); display:flex; align-items:center; justify-content:center;
+    font-size:11px; transition:background 0.15s, color 0.15s;
+  }
+  .anchor-plus button.empty{ background:transparent; border-color:transparent; cursor:default; }
+  .anchor-plus button.active{ background:var(--text); border-color:var(--text); color:var(--bg); }
+  .anchor-plus button:not(.empty):hover:not(.active){ color:var(--text); border-color:var(--border-hover); }
+
   .seg-control{ display:flex; background:var(--surface2); border:0.5px solid var(--border); border-radius:var(--radius); overflow:hidden; padding:2px; gap:2px; }
   .seg-control button{
     background:transparent; border:none; color:var(--text-muted); border-radius:calc(var(--radius) - 2px);
@@ -669,7 +679,8 @@ let state = {
     showGrid: true, showMargins: true,
     showBaseline: false, baselineStep: 24,
     locked: false,
-    mode: 'modular', diagCellSize: 150, diagAngle: 45
+    mode: 'modular', diagCellSize: 150, diagAngle: 45,
+    phiRatio: (1 + Math.sqrt(5)) / 2, phiDepth: 2, phiAnchor: 'center'
   },
   elements: [],
   selectedId: null,
@@ -916,6 +927,9 @@ function computeGrid(){
   if(g.mode === 'diagonal'){
     return computeDiagonalGrid(g, w, h, innerW, innerH);
   }
+  if(g.mode === 'phi'){
+    return computePhiGrid(g, w, h, innerW, innerH);
+  }
 
   const colRatios = syncRatios(g.colRatios, g.cols);
   const rowRatios = syncRatios(g.rowRatios, g.rows);
@@ -995,6 +1009,72 @@ function computeDiagonalGrid(g, w, h, innerW, innerH){
     rowBounds: [{ start: y0, end: y1 }],
     snapX: [0, w, x0, x1], snapY: [0, h, y0, y1],
     diagPoints, diagCenter: { x: cx, y: cy }, diagAngle: angleDeg, diagCellSize: cellSize,
+    marginBox: { x0, y0, x1, y1 }
+  };
+}
+
+/* ---------------------------------------------------------------------
+   PHI GRID — the golden-ratio recursive rectangle subdivision from Phi
+   Guide's "Rectangle" layer (goldenDivisions1D / rectangleGridLines),
+   ported as a third grid type here. Each axis of the margin box is
+   split at the golden section (1-1/ratio, 1/ratio of the span); at
+   depth > 1 the same split recurses into the band(s) `anchor` points
+   toward. The resulting division lines become ordinary colBounds/
+   rowBounds cells plus snapX/snapY — the same shape modular grid
+   returns — so every existing call site (default element placement,
+   drag/resize snapping, "Randomize") keeps working on this mode with
+   no changes; only the boundary-drag handles and the "modular-only"
+   panel sections (column/row counts, gutters) are turned off for it,
+   the same way they already are for diagonal mode.
+--------------------------------------------------------------------- */
+const PHI_RATIO = (1 + Math.sqrt(5)) / 2;
+const PHI_RATIO_PRESETS = [
+  { label:'φ 1.618', value: PHI_RATIO },
+  { label:'√2 1.414', value: Math.SQRT2 },
+  { label:'3∶2 1.5', value: 1.5 },
+  { label:'4∶3 1.333', value: 4/3 },
+  { label:'16∶9 1.778', value: 16/9 }
+];
+function goldenDivisions1D(length, ratio, depth, edgeAnchor){
+  edgeAnchor = edgeAnchor || 'center';
+  const positions = [];
+  function recurse(start, end, d){
+    const len = end - start;
+    if(len <= 0) return;
+    const a = start + len * (1 - 1/ratio);
+    const b = start + len / ratio;
+    positions.push(a, b);
+    if(d > 1){
+      if(edgeAnchor === 'center'){ recurse(start, a, d - 1); recurse(b, end, d - 1); }
+      else if(edgeAnchor === 'start'){ recurse(start, a, d - 1); }
+      else if(edgeAnchor === 'end'){ recurse(b, end, d - 1); }
+    }
+  }
+  recurse(0, length, Math.max(1, Math.min(4, depth|0)));
+  return Array.from(new Set(positions.map(v => Math.round(v*1000)/1000))).sort((x,y)=>x-y);
+}
+function computePhiGrid(g, w, h, innerW, innerH){
+  const x0 = g.marginLeft, y0 = g.marginTop, x1 = w - g.marginRight, y1 = h - g.marginBottom;
+  const ratio = g.phiRatio || PHI_RATIO;
+  const depth = g.phiDepth || 2;
+  const anchor = g.phiAnchor || 'center';
+  const xAnchor = anchor === 'left' ? 'start' : anchor === 'right' ? 'end' : 'center';
+  const yAnchor = anchor === 'top' ? 'start' : anchor === 'bottom' ? 'end' : 'center';
+  const xsLocal = goldenDivisions1D(innerW, ratio, depth, xAnchor);
+  const ysLocal = goldenDivisions1D(innerH, ratio, depth, yAnchor);
+  const xs = [x0, ...xsLocal.map(v => v + x0), x1];
+  const ys = [y0, ...ysLocal.map(v => v + y0), y1];
+  const colBounds = [];
+  for(let i=0;i<xs.length-1;i++) colBounds.push({ start: xs[i], end: xs[i+1] });
+  const rowBounds = [];
+  for(let i=0;i<ys.length-1;i++) rowBounds.push({ start: ys[i], end: ys[i+1] });
+  const snapX = new Set([0, w]); xs.forEach(x => snapX.add(round4(x)));
+  const snapY = new Set([0, h]); ys.forEach(y => snapY.add(round4(y)));
+  return {
+    mode: 'phi', innerW, innerH, colBounds, rowBounds,
+    snapX: Array.from(snapX).sort((a,b)=>a-b),
+    snapY: Array.from(snapY).sort((a,b)=>a-b),
+    phiLinesX: xsLocal.map(v => v + x0), phiLinesY: ysLocal.map(v => v + y0),
     marginBox: { x0, y0, x1, y1 }
   };
 }
@@ -1345,7 +1425,7 @@ function renderGridHandles(){
   const layer = document.getElementById('grid-handles');
   layer.innerHTML = '';
   const g = state.grid;
-  if(g.locked || g.mode === 'diagonal') return; // no draggable boundaries while locked, or in diagonal mode (no columns/rows to drag)
+  if(g.locked || g.mode === 'diagonal' || g.mode === 'phi') return; // no draggable boundaries while locked, or in diagonal/phi mode (lines are computed, not freely adjustable)
   const geo = computeGrid();
   const HIT = 10; // screen px hit-target width/height
 
@@ -2543,6 +2623,29 @@ function lockSection(sectionEl){
   sectionEl.style.pointerEvents = 'none';
 }
 
+// Center = symmetric (default). Top/Bottom bias the Y-axis subdivision,
+// Left/Right bias the X-axis subdivision — same reference-point picker
+// as Phi Guide's rectangle layer, ported for the Phi grid's `phiAnchor`.
+function buildPhiAnchorSelector(g){
+  const grid = document.createElement('div');
+  grid.className = 'anchor-plus';
+  const cells = [
+    {key:null},          {key:'top', label:'&#8593;', title:'Top'},           {key:null},
+    {key:'left', label:'&#8592;', title:'Left'}, {key:'center', label:'&#8226;', title:'Center'}, {key:'right', label:'&#8594;', title:'Right'},
+    {key:null},          {key:'bottom', label:'&#8595;', title:'Bottom'},     {key:null}
+  ];
+  cells.forEach(cell => {
+    const b = document.createElement('button');
+    if(cell.key === null){ b.className = 'empty'; b.tabIndex = -1; grid.appendChild(b); return; }
+    b.innerHTML = cell.label;
+    b.title = cell.title;
+    b.className = (g.phiAnchor || 'center') === cell.key ? 'active' : '';
+    b.addEventListener('click', () => { pushHistory(); g.phiAnchor = cell.key; renderAll(); });
+    grid.appendChild(b);
+  });
+  return grid;
+}
+
 function buildGridSection(){
   const wrap = document.createElement('div');
   const g = state.grid;
@@ -2566,7 +2669,7 @@ function buildGridSection(){
 
   const modeSection = section('Grid type');
   const modeCtl = document.createElement('div'); modeCtl.className = 'seg-control';
-  [['modular','Modular'],['diagonal','Diagonal']].forEach(([val,label]) => {
+  [['modular','Modular'],['diagonal','Diagonal'],['phi','Phi']].forEach(([val,label]) => {
     const b = document.createElement('button'); b.textContent = label;
     b.className = (g.mode || 'modular') === val ? 'active' : '';
     b.addEventListener('click', () => { pushHistory(); g.mode = val; renderAll(); });
@@ -2590,7 +2693,46 @@ function buildGridSection(){
     wrap.appendChild(sd);
   }
 
-  if(g.mode !== 'diagonal'){
+  if(g.mode === 'phi'){
+    const sp = section('Phi grid');
+    const ratioWrap = document.createElement('div');
+    ratioWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin-bottom:9px;';
+    PHI_RATIO_PRESETS.forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'add-layer-btn'; b.style.cssText = 'flex:0 0 auto; padding:4px 9px;';
+      b.textContent = p.label;
+      if(Math.abs((g.phiRatio || PHI_RATIO) - p.value) < 0.0005) b.style.cssText += 'border-color:var(--text); color:var(--text);';
+      b.addEventListener('click', () => { pushHistory(); g.phiRatio = p.value; renderAll(); });
+      ratioWrap.appendChild(b);
+    });
+    const ratioLabel = document.createElement('div');
+    ratioLabel.style.cssText = 'color:var(--text-muted); font-size:12px; margin-bottom:6px;';
+    ratioLabel.textContent = 'Ratio';
+    sp.appendChild(ratioLabel);
+    sp.appendChild(ratioWrap);
+    const customRatioCtl = numCombo(round4(g.phiRatio || PHI_RATIO), 0.001, 1.01, 10, v => { g.phiRatio = v; renderAll(); });
+    sp.appendChild(fieldRow('Custom ratio', customRatioCtl));
+
+    const depthCtl = document.createElement('div'); depthCtl.className = 'seg-control';
+    [1,2,3,4].forEach(d => {
+      const b = document.createElement('button'); b.textContent = d;
+      b.className = (g.phiDepth || 2) === d ? 'active' : '';
+      b.addEventListener('click', () => { pushHistory(); g.phiDepth = d; renderAll(); });
+      depthCtl.appendChild(b);
+    });
+    sp.appendChild(fieldRow('Subdivision levels', depthCtl));
+
+    sp.appendChild(fieldRow('Reference point', buildPhiAnchorSelector(g)));
+
+    const phiHint = document.createElement('div');
+    phiHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-top:-2px;';
+    phiHint.textContent = 'Recursive golden-section division, ported from Phi Guide — each axis splits at the golden ratio, and at 2+ levels the reference point sets which side keeps subdividing. Center stays symmetric.';
+    sp.appendChild(phiHint);
+    if(g.locked) lockSection(sp);
+    wrap.appendChild(sp);
+  }
+
+  if(g.mode === 'modular'){
   const s1 = section('Layout');
   const colsCtl = numCombo(g.cols, 1, 1, 24, v => {
     g.cols = Math.round(v); g.colRatios = syncRatios(g.colRatios, g.cols);
@@ -2671,7 +2813,7 @@ function buildGridSection(){
   if(g.locked) lockSection(sBleed);
   wrap.appendChild(sBleed);
 
-  if(g.mode !== 'diagonal'){
+  if(g.mode === 'modular'){
   const s3 = section('Gutters');
   const gutterX = numCombo(g.gutterX, 1, 0, undefined, v => { g.gutterX = v; renderAll(); });
   s3.appendChild(fieldRow('Column gutter', gutterX));
