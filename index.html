@@ -1195,6 +1195,20 @@ function deleteElement(id){
   pushHistory();
   state.elements.splice(idx, 1);
   if(state.selectedId === id) state.selectedId = null;
+  // Heal any chain broken by the deletion: whoever linked into the
+  // removed block stops linking anywhere (rather than silently jumping
+  // to whatever it used to point past), and if that unlinks it entirely,
+  // its full story text (which lived only in storyText) comes back as
+  // its own visible content instead of disappearing.
+  state.elements.forEach(e => {
+    if(e.type === 'text' && e.linkNextId === id){
+      e.linkNextId = null;
+      if(!isPartOfChain(e) && e.storyText !== undefined){
+        e.content = e.storyText;
+        delete e.storyText;
+      }
+    }
+  });
   renderAll();
 }
 
@@ -1782,6 +1796,109 @@ function autofitText(el, box){
   el.fontSize = round4(lo / pageScale);
 }
 
+/* ---------------------------------------------------------------------
+   LINKED TEXT ("threading") — a text block can name another text block
+   as where its overflow continues, the way InDesign threads frames into
+   one continuous story. Only the chain's HEAD (the block nobody else
+   links into) is directly editable and holds the full story text, in
+   el.storyText; every block in the chain — head included — always shows
+   just the slice of that story which fits its own box in el.content,
+   recomputed by reflowChain() whenever the story, a box's size, or its
+   typography changes. A block outside any chain never gets a
+   storyText field and behaves exactly as before (content == what's
+   shown, directly editable).
+--------------------------------------------------------------------- */
+function isPartOfChain(el){
+  return !!(el && el.type === 'text' && (el.linkNextId || state.elements.some(e => e.type==='text' && e.linkNextId === el.id)));
+}
+function isDownstreamLinked(el){
+  return !!(el && el.type === 'text' && state.elements.some(e => e.type==='text' && e.linkNextId === el.id));
+}
+function chainHead(el){
+  let cur = el, guard = 0;
+  while(guard++ < 200){
+    const prev = state.elements.find(e => e.type==='text' && e.linkNextId === cur.id);
+    if(!prev) break;
+    cur = prev;
+  }
+  return cur;
+}
+// el itself plus every block already upstream of it (walking backwards
+// via linkNextId) — linking el to any of these would close a loop.
+// Deliberately does NOT include el's own downstream target(s): pointing
+// el at whatever it already links to (or something further down that
+// same chain) is fine and must stay choosable in the panel.
+function chainAncestorsInclusive(el){
+  const list = [el];
+  let cur = el, guard = 0;
+  while(guard++ < 200){
+    const prev = state.elements.find(e => e.type==='text' && e.linkNextId === cur.id);
+    if(!prev || list.includes(prev)) break;
+    list.push(prev); cur = prev;
+  }
+  return list;
+}
+function chainBlocks(headEl){
+  const list = [headEl];
+  let cur = headEl, guard = 0;
+  while(cur.linkNextId && guard++ < 200){
+    const next = getElement(cur.linkNextId);
+    if(!next || next.type !== 'text' || list.includes(next)) break;
+    list.push(next); cur = next;
+  }
+  return list;
+}
+// Binary-searches (on whole words, so a chain never splits mid-word) how
+// much of `fullText` fits inside `box`'s current size at `el`'s current
+// typography, using a hidden offscreen clone rather than the box's own
+// text node so this can run before that node's own style is updated.
+function fitTextToBox(fullText, el, box){
+  const targetW = box.clientWidth, targetH = box.clientHeight;
+  if(targetW <= 0 || targetH <= 0) return { shown: '', rest: fullText };
+  const measurer = document.createElement('div');
+  measurer.style.cssText = 'position:absolute; visibility:hidden; left:-9999px; top:-9999px; white-space:pre-wrap; word-wrap:break-word;';
+  measurer.style.width = targetW + 'px';
+  applyTextStyle(measurer, el);
+  document.body.appendChild(measurer);
+  const tokens = fullText.split(/(\s+)/); // keep separators so slices reconstruct exactly
+  function textUpTo(n){ return tokens.slice(0, n).join(''); }
+  function fits(n){ measurer.textContent = textUpTo(n); return measurer.scrollHeight <= targetH + 0.5; }
+  let shown, rest;
+  if(fits(tokens.length)){ shown = fullText; rest = ''; }
+  else {
+    let lo = 0, hi = tokens.length;
+    while(lo < hi){
+      const mid = Math.ceil((lo+hi)/2);
+      if(fits(mid)) lo = mid; else hi = mid - 1;
+    }
+    shown = textUpTo(lo);
+    rest = fullText.slice(shown.length).replace(/^\s+/, '');
+  }
+  document.body.removeChild(measurer);
+  return { shown, rest };
+}
+function reflowChain(headEl){
+  if(!headEl || headEl.type !== 'text') return;
+  const chain = chainBlocks(headEl);
+  let remaining = headEl.storyText !== undefined ? headEl.storyText : (headEl.content || '');
+  chain.forEach((blockEl, i) => {
+    const box = document.getElementById('box-' + blockEl.id);
+    const isLast = i === chain.length - 1;
+    if(isLast){
+      blockEl.content = remaining;
+      remaining = '';
+    } else if(box){
+      const { shown, rest } = fitTextToBox(remaining, blockEl, box);
+      blockEl.content = shown;
+      remaining = rest;
+    } else {
+      blockEl.content = remaining;
+      remaining = '';
+    }
+    if(box) renderTextContent(box, blockEl);
+  });
+}
+
 // Refresh only the visual styling of existing element boxes (font size,
 // color, image fit...) without rebuilding the DOM — used for property
 // edits so typing/dragging in the panel never fights a live interaction.
@@ -1791,10 +1908,12 @@ function autofitText(el, box){
 // a live gesture because nothing keeps pointer capture or focus on
 // those nodes outside of enterTextEditMode, which has its own path.
 function refreshElementVisuals(){
+  const chainHeads = new Set();
   state.elements.forEach(el => {
     const box = document.getElementById('box-' + el.id);
     if(!box) return;
     if(el.type === 'text'){
+      if(isPartOfChain(el)){ chainHeads.add(chainHead(el)); return; } // reflowed together, once, below
       renderTextContent(box, el);
       if(el.autoFit) autofitText(el, box);
     } else if(el.type === 'image'){
@@ -1804,6 +1923,7 @@ function refreshElementVisuals(){
       applyShapeStyle(box, el);
     }
   });
+  chainHeads.forEach(head => reflowChain(head));
 }
 
 /* ---------------------------------------------------------------------
@@ -1815,7 +1935,12 @@ function refreshElementVisuals(){
 --------------------------------------------------------------------- */
 function enterTextEditMode(el, box){
   if(box.querySelector('.el-text.editing')) return;
+  if(isDownstreamLinked(el)){
+    toast('This block is linked — edit the first block in the chain instead');
+    return;
+  }
   pushHistory();
+  const chained = isPartOfChain(el);
   const clip = getTextClip(box);
   clip.innerHTML = '';
   clip.classList.add('editing'); // lets typed text overflow visibly instead of clipping mid-edit
@@ -1824,7 +1949,9 @@ function enterTextEditMode(el, box){
   txt.className = 'el-text editing';
   txt.contentEditable = 'true';
   txt.spellcheck = false;
-  txt.textContent = el.content;
+  // A chain head edits its full story text (spanning every linked block
+  // downstream), not just the slice reflowChain last put in its own box.
+  txt.textContent = chained ? (el.storyText !== undefined ? el.storyText : el.content) : el.content;
   applyTextStyle(txt, el);
   clip.appendChild(txt);
 
@@ -1842,9 +1969,15 @@ function enterTextEditMode(el, box){
     // browser inserted on Enter) — textContent would just concatenate
     // them with no separator and silently lose every line break.
     let content = txt.innerText !== undefined ? txt.innerText : txt.textContent;
-    el.content = (content || '').replace(/\n+$/, '');
-    renderTextContent(box, el);
-    if(el.autoFit) autofitText(el, box);
+    content = (content || '').replace(/\n+$/, '');
+    if(chained){
+      el.storyText = content;
+      reflowChain(el);
+    } else {
+      el.content = content;
+      renderTextContent(box, el);
+      if(el.autoFit) autofitText(el, box);
+    }
   }
   txt.addEventListener('blur', finish);
   txt.__exitEdit = finish;
@@ -2099,6 +2232,7 @@ function startResize(e, el, dir){
   function onUp(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    if(el.type === 'text' && isPartOfChain(el)) reflowChain(chainHead(el));
     renderPropsPanel();
   }
   document.addEventListener('pointermove', onMove);
@@ -2859,6 +2993,41 @@ function buildTextSection(el){
   colorInput.addEventListener('input', () => { el.color = colorInput.value; refreshElementVisuals(); });
   colorCtl.appendChild(colorInput); colorRow.appendChild(colorLabel); colorRow.appendChild(colorCtl);
   s.appendChild(colorRow);
+
+  const threadingDisabled = el.autoFit || el.vAlign === 'justify';
+  const threadHint = document.createElement('div');
+  threadHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin:10px 0 6px;';
+  threadHint.textContent = threadingDisabled
+    ? 'Linking is unavailable with auto-fit or justify — both assume the text never overflows.'
+    : 'When this block overflows, the rest of the text continues in the linked block — like threaded frames in InDesign.';
+  s.appendChild(threadHint);
+  if(!threadingDisabled){
+    const excluded = new Set(chainAncestorsInclusive(el).map(e => e.id));
+    const linkSel = document.createElement('select'); linkSel.className = 'prop-select';
+    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = 'None';
+    linkSel.appendChild(noneOpt);
+    state.elements.forEach(other => {
+      if(other.type !== 'text' || excluded.has(other.id)) return;
+      const o = document.createElement('option');
+      o.value = other.id; o.textContent = other.name || 'Text';
+      if(el.linkNextId === other.id) o.selected = true;
+      linkSel.appendChild(o);
+    });
+    linkSel.addEventListener('change', () => {
+      pushHistory();
+      const wasChained = isPartOfChain(el);
+      el.linkNextId = linkSel.value || null;
+      const nowChained = isPartOfChain(el);
+      if(nowChained && el.storyText === undefined) el.storyText = el.content;
+      if(!nowChained && wasChained && el.storyText !== undefined){
+        el.content = el.storyText;
+        delete el.storyText;
+      }
+      refreshElementVisuals();
+      renderPropsPanel();
+    });
+    s.appendChild(fieldRow('Link to next block', linkSel));
+  }
 
   return s;
 }
