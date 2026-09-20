@@ -824,6 +824,7 @@ let state = {
   multiSelectIds: [],
   textStyles: [],
   pageTemplates: [],
+  imageLibrary: [],
   pages: [],
   currentPageIndex: 0
 };
@@ -3281,6 +3282,28 @@ function buildImageSection(el){
   uploadBtn.addEventListener('click', () => { pushHistory(); triggerImageUpload(el.id); });
   s.appendChild(uploadBtn);
 
+  if(state.imageLibrary.length){
+    const libLabel = document.createElement('div');
+    libLabel.style.cssText = 'color:var(--text-muted); font-size:12px; margin:10px 0 6px;';
+    libLabel.textContent = 'Or pick an image already used in this project';
+    s.appendChild(libLabel);
+    const libGrid = document.createElement('div');
+    libGrid.style.cssText = 'display:grid; grid-template-columns:repeat(5,1fr); gap:5px;';
+    state.imageLibrary.forEach(img => {
+      const thumb = document.createElement('div');
+      thumb.style.cssText = `aspect-ratio:1; border-radius:4px; background:url(${img.src}) center/cover; cursor:pointer; ` +
+        `border:1.5px solid ${el.src === img.src ? 'var(--grid-line)' : 'transparent'}; transition:border-color 0.15s;`;
+      thumb.title = 'Use this image';
+      thumb.addEventListener('click', () => {
+        pushHistory();
+        el.src = img.src;
+        renderAll(); // an empty box's placeholder is a different DOM shape than an image box — needs a full rebuild, not just a style refresh
+      });
+      libGrid.appendChild(thumb);
+    });
+    s.appendChild(libGrid);
+  }
+
   const fitCtl = document.createElement('div'); fitCtl.className = 'seg-control'; fitCtl.style.marginTop='10px';
   [['cover','Cover'],['contain','Contain'],['fill','Stretch']].forEach(([val,label]) => {
     const b = document.createElement('button');
@@ -3756,10 +3779,20 @@ fileInput.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = () => {
     const el = getElement(pendingUploadElId);
-    if(el){ el.src = reader.result; renderAll(); }
+    if(el){ el.src = reader.result; addToImageLibrary(reader.result); renderAll(); }
   };
   reader.readAsDataURL(file);
 });
+
+// A running, document-wide library of every distinct image uploaded —
+// lets a later image block reuse one already brought in instead of
+// uploading the same file again. Capped so a huge project doesn't grow
+// the saved file unboundedly; oldest entries drop first.
+function addToImageLibrary(src){
+  if(state.imageLibrary.some(img => img.src === src)) return;
+  state.imageLibrary.push({ id: uid(), src });
+  if(state.imageLibrary.length > 60) state.imageLibrary.shift();
+}
 
 /* ---------------------------------------------------------------------
    TOP-LEVEL RENDER
@@ -4654,7 +4687,8 @@ function exportProjectFile(){
     currentPageIndex: state.currentPageIndex,
     pages: state.pages,
     textStyles: state.textStyles,
-    pageTemplates: state.pageTemplates
+    pageTemplates: state.pageTemplates,
+    imageLibrary: state.imageLibrary
   };
   const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
   downloadBlob(blob, 'grid-studio-project.json');
@@ -4672,6 +4706,7 @@ function importProjectFile(file){
     loadPageData(state.pages[state.currentPageIndex]);
     state.textStyles = doc.textStyles || [];
     state.pageTemplates = doc.pageTemplates || [];
+    state.imageLibrary = doc.imageLibrary || [];
     undoStack = []; redoStack = [];
     wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
     applyUnitStep();
