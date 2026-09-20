@@ -244,6 +244,24 @@
     display:flex; align-items:center; justify-content:center;
     overflow:auto; padding:36px;
   }
+  #zoom-controls{
+    position:absolute; right:14px; bottom:14px; z-index:10;
+    display:flex; align-items:center; gap:2px;
+    background:rgba(var(--bg-rgb),0.92); backdrop-filter:blur(12px);
+    border:0.5px solid var(--border-hover); border-radius:var(--radius);
+    padding:3px; box-shadow:0 8px 20px rgba(0,0,0,0.35);
+  }
+  #zoom-controls button{
+    width:22px; height:22px; border:none; background:transparent; color:var(--text-muted);
+    cursor:pointer; border-radius:calc(var(--radius) - 2px); font-size:14px; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition:background 0.15s, color 0.15s;
+  }
+  #zoom-controls button:hover{ background:var(--surface2); color:var(--text); }
+  #zoom-indicator{
+    width:42px; text-align:center; font-size:11px; color:var(--text-muted); cursor:pointer;
+    font-family:var(--mono); user-select:none;
+  }
+  #zoom-indicator:hover{ color:var(--text); }
   #page{
     position:relative; box-shadow:0 0 0 1px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);
     background:#ffffff; overflow:hidden; flex:0 0 auto;
@@ -677,6 +695,11 @@
             <div id="elements-layer"></div>
             <div id="grid-handles"></div>
           </div>
+        </div>
+        <div id="zoom-controls">
+          <button id="zoom-out" title="Zoom out (Cmd/Ctrl −)">&minus;</button>
+          <span id="zoom-indicator" title="Double-click to reset to fit">100%</span>
+          <button id="zoom-in" title="Zoom in (Cmd/Ctrl +)">+</button>
         </div>
       </div>
       <div id="page-strip"></div>
@@ -1497,6 +1520,16 @@ function fontStackFor(el){
    STAGE — scale-to-fit + rendering
 --------------------------------------------------------------------- */
 let pageScale = 1;
+// Extra zoom on top of the automatic scale-to-fit — 1 means "fit the
+// stage" exactly as before; Cmd/Ctrl+scroll or the +/- shortcuts adjust
+// it, 0 (or double-clicking the indicator) resets to fit.
+let zoomMultiplier = 1;
+function setZoomMultiplier(v){
+  zoomMultiplier = clamp(round4(v), 0.25, 4);
+  renderStage();
+  const label = document.getElementById('zoom-indicator');
+  if(label) label.textContent = Math.round(zoomMultiplier*100) + '%';
+}
 
 function renderStage(){
   const w = state.canvasW, h = state.canvasH;
@@ -1510,7 +1543,7 @@ function renderStage(){
   // that larger size too, or a big bleed would push the trim area past
   // the visible stage.
   const totalW = w + bleed*2, totalH = h + bleed*2;
-  pageScale = Math.min(availW / totalW, availH / totalH, 40);
+  pageScale = Math.min(availW / totalW, availH / totalH, 40) * zoomMultiplier;
   page.style.width = (totalW*pageScale) + 'px';
   page.style.height = (totalH*pageScale) + 'px';
   page.style.background = state.bgColor;
@@ -3614,6 +3647,18 @@ function renderAll(){
 window.addEventListener('resize', () => renderStage());
 
 /* ---------------------------------------------------------------------
+   ZOOM
+--------------------------------------------------------------------- */
+document.getElementById('zoom-in').addEventListener('click', () => setZoomMultiplier(zoomMultiplier + 0.1));
+document.getElementById('zoom-out').addEventListener('click', () => setZoomMultiplier(zoomMultiplier - 0.1));
+document.getElementById('zoom-indicator').addEventListener('dblclick', () => setZoomMultiplier(1));
+document.getElementById('stage-wrap').addEventListener('wheel', (e) => {
+  if(!(e.metaKey || e.ctrlKey)) return; // plain scroll still pans the stage normally
+  e.preventDefault();
+  setZoomMultiplier(zoomMultiplier + (e.deltaY < 0 ? 0.1 : -0.1));
+}, { passive:false });
+
+/* ---------------------------------------------------------------------
    TOAST
 --------------------------------------------------------------------- */
 let toastTimer = null;
@@ -3741,6 +3786,9 @@ document.addEventListener('keydown', (e) => {
     if(e.key.toLowerCase() === 'y'){ e.preventDefault(); redo(); return; }
     if(e.key.toLowerCase() === 'c'){ e.preventDefault(); copySelectedElement(); return; }
     if(e.key.toLowerCase() === 'v'){ e.preventDefault(); pasteElement(); return; }
+    if(e.key === '=' || e.key === '+'){ e.preventDefault(); setZoomMultiplier(zoomMultiplier + 0.1); return; }
+    if(e.key === '-'){ e.preventDefault(); setZoomMultiplier(zoomMultiplier - 0.1); return; }
+    if(e.key === '0'){ e.preventDefault(); setZoomMultiplier(1); return; }
   }
 
   if(editable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
