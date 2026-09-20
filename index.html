@@ -275,6 +275,7 @@
      shows it there instead of clipping it away during editing. */
   #trim-frame{ position:absolute; overflow:visible; }
   #grid-overlay{ position:absolute; inset:0; pointer-events:none; display:block; overflow:visible; }
+  #align-guides{ position:absolute; inset:0; pointer-events:none; display:block; overflow:visible; z-index:4; }
   #elements-layer{ position:absolute; inset:0; }
   #grid-handles{ position:absolute; inset:0; pointer-events:none; z-index:3; }
   .grid-handle{ position:absolute; pointer-events:auto; background:transparent; transition:background 0.1s; }
@@ -702,6 +703,7 @@
           <div id="trim-frame">
             <svg id="grid-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
             <div id="elements-layer"></div>
+            <svg id="align-guides" xmlns="http://www.w3.org/2000/svg"></svg>
             <div id="grid-handles"></div>
           </div>
         </div>
@@ -1593,6 +1595,12 @@ function renderStage(){
   buildGridOverlaySVG(svg);
   renderGridHandles();
 
+  const alignSvg = document.getElementById('align-guides');
+  alignSvg.setAttribute('width', w*pageScale);
+  alignSvg.setAttribute('height', h*pageScale);
+  alignSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  alignSvg.innerHTML = '';
+
   renderElementPositions();
 }
 
@@ -2422,6 +2430,64 @@ function startGroupDrag(e, leaderEl){
   document.addEventListener('pointerup', onUp);
 }
 
+// Element-to-element "smart" alignment guides — every other visible
+// element's left/center/right and top/middle/bottom edges become extra
+// snap targets during a drag, on top of whatever the grid already
+// offers, with a thin guide line drawn for whichever axis actually
+// matched (cleared again on pointerup).
+function computeAlignTargets(excludeId){
+  const xs = [], ys = [];
+  state.elements.forEach(o => {
+    if(o.id === excludeId || o.visible === false) return;
+    xs.push(o.x, o.x + o.w/2, o.x + o.w);
+    ys.push(o.y, o.y + o.h/2, o.y + o.h);
+  });
+  return { xs, ys };
+}
+function snapToAlignTargets(nx, ny, w, h, targets, threshold){
+  const candX = [ {frac:0, v:nx}, {frac:0.5, v:nx+w/2}, {frac:1, v:nx+w} ];
+  const candY = [ {frac:0, v:ny}, {frac:0.5, v:ny+h/2}, {frac:1, v:ny+h} ];
+  let bestX = null, bestY = null;
+  candX.forEach(c => {
+    targets.xs.forEach(t => {
+      const d = Math.abs(c.v - t);
+      if(d < threshold && (!bestX || d < bestX.dist)) bestX = { dist:d, value:t, frac:c.frac };
+    });
+  });
+  candY.forEach(c => {
+    targets.ys.forEach(t => {
+      const d = Math.abs(c.v - t);
+      if(d < threshold && (!bestY || d < bestY.dist)) bestY = { dist:d, value:t, frac:c.frac };
+    });
+  });
+  return {
+    x: bestX ? bestX.value - bestX.frac*w : nx,
+    y: bestY ? bestY.value - bestY.frac*h : ny,
+    guideX: bestX ? bestX.value : null,
+    guideY: bestY ? bestY.value : null
+  };
+}
+function drawAlignGuides(guideX, guideY){
+  const svg = document.getElementById('align-guides');
+  if(!svg) return;
+  svg.innerHTML = '';
+  const w = state.canvasW, h = state.canvasH;
+  function line(x1,y1,x2,y2){
+    const l = document.createElementNS(SVGNS, 'line');
+    l.setAttribute('x1', fx(x1)); l.setAttribute('y1', fx(y1));
+    l.setAttribute('x2', fx(x2)); l.setAttribute('y2', fx(y2));
+    l.setAttribute('stroke', '#ff3fa4'); l.setAttribute('stroke-width', 1);
+    l.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(l);
+  }
+  if(guideX !== null) line(guideX, 0, guideX, h);
+  if(guideY !== null) line(0, guideY, w, guideY);
+}
+function clearAlignGuides(){
+  const svg = document.getElementById('align-guides');
+  if(svg) svg.innerHTML = '';
+}
+
 function startDrag(e, el){
   const box = document.getElementById('box-' + el.id);
   const startX = e.clientX, startY = e.clientY;
@@ -2429,6 +2495,7 @@ function startDrag(e, el){
   const geo = computeGrid();
   const thresholdX = SNAP_THRESHOLD_SCREEN_PX / pageScale;
   const thresholdY = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  const alignTargets = computeAlignTargets(el.id);
   let moved = false;
 
   function onMove(ev){
@@ -2450,6 +2517,12 @@ function startDrag(e, el){
       nx = snapValue(nx, geo.snapX, thresholdX);
       ny = snapValue(ny, geo.snapY, thresholdY);
     }
+    // Element-to-element "smart" guides win over the grid when both are
+    // close — aligning to another block's edge/center is usually the
+    // more deliberate thing being reached for.
+    const aligned = snapToAlignTargets(nx, ny, el.w, el.h, alignTargets, Math.max(thresholdX, thresholdY));
+    nx = aligned.x; ny = aligned.y;
+    drawAlignGuides(aligned.guideX, aligned.guideY);
     nx = clamp(nx, -state.bleed, state.canvasW + state.bleed - el.w);
     ny = clamp(ny, -state.bleed, state.canvasH + state.bleed - el.h);
     el.x = nx; el.y = ny;
@@ -2459,6 +2532,7 @@ function startDrag(e, el){
   function onUp(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    clearAlignGuides();
     if(moved) renderPropsPanel();
   }
   document.addEventListener('pointermove', onMove);
