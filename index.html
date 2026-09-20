@@ -1093,6 +1093,18 @@ const PHI_RATIO_PRESETS = [
   { label:'4∶3 1.333', value: 4/3 },
   { label:'16∶9 1.778', value: 16/9 }
 ];
+
+// The field counts Müller-Brockmann's Grid Systems in Graphic Design
+// works through (8 to 32 fields) — factored into sensible column x row
+// pairs for a modular grid (not his exact book measurements, which
+// vary per project; margins/gutters here are a generic ample-Swiss-
+// margin default meant as a reasonable starting point, not a facsimile
+// of a specific printed page from the book).
+const MB_GRID_PRESETS = [
+  { name: '8-field', cols: 4, rows: 2, desc: 'A simple editorial grid — four columns, two rows. Good for text-heavy layouts with a handful of image blocks.' },
+  { name: '20-field', cols: 4, rows: 5, desc: 'A denser grid for mixed text/image layouts needing more vertical rhythm.' },
+  { name: '32-field', cols: 4, rows: 8, desc: 'A fine modular grid in the spirit of Müller-Brockmann’s concert posters — plenty of modules for precise, geometric placement.' }
+];
 function goldenDivisions1D(length, ratio, depth, edgeAnchor){
   edgeAnchor = edgeAnchor || 'center';
   const positions = [];
@@ -2736,6 +2748,37 @@ function buildGridSection(){
   modeSection.appendChild(fieldRow('Type', modeCtl));
   if(g.locked) lockSection(modeSection);
   wrap.appendChild(modeSection);
+
+  const sPresets = section('Grid presets');
+  const presetHint = document.createElement('div');
+  presetHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:8px;';
+  presetHint.textContent = 'The classic field counts from Josef Müller-Brockmann’s Grid Systems in Graphic Design — sets a modular grid with ample, consistent margins and equal-weight columns/rows to start from.';
+  sPresets.appendChild(presetHint);
+  const presetBtnWrap = document.createElement('div');
+  presetBtnWrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+  MB_GRID_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn ghost'; b.style.cssText = 'width:100%; justify-content:space-between;';
+    b.innerHTML = `<span>${p.name}</span><span style="color:var(--text-dim); font-size:10.5px;">${p.cols}×${p.rows}</span>`;
+    b.title = p.desc;
+    b.addEventListener('click', () => {
+      pushHistory();
+      g.mode = 'modular';
+      g.cols = p.cols; g.rows = p.rows;
+      g.colRatios = new Array(p.cols).fill(1); g.rowRatios = new Array(p.rows).fill(1);
+      const marginFrac = 0.08, gutterFrac = 0.012;
+      const short = Math.min(state.canvasW, state.canvasH);
+      g.marginTop = g.marginBottom = g.marginLeft = g.marginRight = round4(short * marginFrac);
+      g.gutterX = g.gutterY = round4(short * gutterFrac);
+      clampElementsToPage();
+      renderAll();
+      toast(p.name + ' applied');
+    });
+    presetBtnWrap.appendChild(b);
+  });
+  sPresets.appendChild(presetBtnWrap);
+  if(g.locked) lockSection(sPresets);
+  wrap.appendChild(sPresets);
 
   if(g.mode === 'diagonal'){
     const sd = section('Diagonal grid');
