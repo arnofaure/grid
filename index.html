@@ -367,6 +367,22 @@
     margin:0 0 10px 0; font-size:11px; font-weight:600; letter-spacing:0.4px;
     color:var(--text-muted); text-transform:uppercase;
   }
+  /* Collapsible settings sections (Grid panel) — a small color dot ties
+     each section to the guide color it controls (teal=grid, coral=
+     margins, pink=bleed, gold=baseline), and the whole panel starts
+     with only the most-used sections open so a first look isn't ~10
+     stacked, equally-loud gray blocks. */
+  .section-header{
+    width:100%; display:flex; align-items:center; gap:8px; background:none; border:none;
+    padding:0; margin:0 0 10px 0; cursor:pointer; color:var(--text-muted); font:inherit; text-align:left;
+  }
+  .section-header:hover{ color:var(--text); }
+  .section-header h3{ margin:0; flex:1; font-size:11px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; color:inherit; }
+  .section-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--text-dim); }
+  .section-chevron{ display:flex; color:var(--text-dim); transition:transform 0.15s; flex:0 0 auto; }
+  .collapsible-section.collapsed .section-chevron{ transform:rotate(-90deg); }
+  .collapsible-section.collapsed .section-body{ display:none; }
+  .collapsible-section.collapsed .section-header{ margin-bottom:0; }
   .field-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; gap:10px; }
   .field-row label{ color:var(--text-muted); flex:0 0 auto; font-size:12px; }
   .field-row .control{ flex:1; display:flex; justify-content:flex-end; }
@@ -3012,6 +3028,36 @@ function buildPhiAnchorSelector(g){
   return grid;
 }
 
+// Collapse state persists per section title across re-renders (the
+// panel gets rebuilt on almost every edit) but resets on reload — a
+// session-only memory of what the user opened/closed, not saved state.
+let gridSectionCollapse = {};
+function collapsibleSection(parent, title, color, defaultOpen){
+  const wrap = document.createElement('div');
+  wrap.className = 'props-section collapsible-section';
+  const collapsed = gridSectionCollapse[title] !== undefined ? gridSectionCollapse[title] : !defaultOpen;
+  if(collapsed) wrap.classList.add('collapsed');
+
+  const header = document.createElement('button');
+  header.type = 'button'; header.className = 'section-header';
+  const dot = document.createElement('span'); dot.className = 'section-dot';
+  if(color) dot.style.background = color;
+  const h = document.createElement('h3'); h.textContent = title;
+  const chevron = document.createElement('span'); chevron.className = 'section-chevron';
+  chevron.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  header.appendChild(dot); header.appendChild(h); header.appendChild(chevron);
+  header.addEventListener('click', () => {
+    const nowCollapsed = !wrap.classList.contains('collapsed');
+    wrap.classList.toggle('collapsed', nowCollapsed);
+    gridSectionCollapse[title] = nowCollapsed;
+  });
+
+  const body = document.createElement('div'); body.className = 'section-body';
+  wrap.appendChild(header); wrap.appendChild(body);
+  parent.appendChild(wrap);
+  return body;
+}
+
 function buildGridSection(){
   const wrap = document.createElement('div');
   const g = state.grid;
@@ -3033,7 +3079,7 @@ function buildGridSection(){
   lockRow.appendChild(lockLabel); lockRow.appendChild(lockBtn);
   wrap.appendChild(lockRow);
 
-  const modeSection = section('Grid type');
+  const modeSection = collapsibleSection(wrap, 'Grid type', null, true);
   const modeCtl = document.createElement('div'); modeCtl.className = 'seg-control';
   [['modular','Modular'],['diagonal','Diagonal'],['phi','Phi']].forEach(([val,label]) => {
     const b = document.createElement('button'); b.textContent = label;
@@ -3043,9 +3089,8 @@ function buildGridSection(){
   });
   modeSection.appendChild(fieldRow('Type', modeCtl));
   if(g.locked) lockSection(modeSection);
-  wrap.appendChild(modeSection);
 
-  const sPresets = section('Grid presets');
+  const sPresets = collapsibleSection(wrap, 'Grid presets', null, false);
   const presetHint = document.createElement('div');
   presetHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:8px;';
   presetHint.textContent = 'The classic field counts from Josef Müller-Brockmann’s Grid Systems in Graphic Design — sets a modular grid with ample, consistent margins and equal-weight columns/rows to start from.';
@@ -3074,10 +3119,9 @@ function buildGridSection(){
   });
   sPresets.appendChild(presetBtnWrap);
   if(g.locked) lockSection(sPresets);
-  wrap.appendChild(sPresets);
 
   if(g.mode === 'diagonal'){
-    const sd = section('Diagonal grid');
+    const sd = collapsibleSection(wrap, 'Diagonal grid', 'var(--grid-line)', true);
     const cellCtl = numCombo(g.diagCellSize, 5, 20, undefined, v => { g.diagCellSize = v; renderAll(); });
     sd.appendChild(fieldRow('Cell size', cellCtl));
     const angleCtl = numCombo(g.diagAngle, 1, -90, 90, v => { g.diagAngle = v; renderAll(); });
@@ -3087,11 +3131,10 @@ function buildGridSection(){
     diagHint.textContent = 'A square lattice rotated around the margin box’s center and clipped to it — the "shop window" grids from Grid Systems in Graphic Design. New elements (and "Randomize") snap to its intersections and inherit its angle; drag any element’s Rotation to realign it by hand.';
     sd.appendChild(diagHint);
     if(g.locked) lockSection(sd);
-    wrap.appendChild(sd);
   }
 
   if(g.mode === 'phi'){
-    const sp = section('Phi grid');
+    const sp = collapsibleSection(wrap, 'Phi grid', 'var(--grid-line)', true);
     const ratioWrap = document.createElement('div');
     ratioWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin-bottom:9px;';
     PHI_RATIO_PRESETS.forEach(p => {
@@ -3126,11 +3169,10 @@ function buildGridSection(){
     phiHint.textContent = 'Recursive golden-section division, ported from Phi Guide — each axis splits at the golden ratio, and at 2+ levels the reference point sets which side keeps subdividing. Center stays symmetric.';
     sp.appendChild(phiHint);
     if(g.locked) lockSection(sp);
-    wrap.appendChild(sp);
   }
 
   if(g.mode === 'modular'){
-  const s1 = section('Layout');
+  const s1 = collapsibleSection(wrap, 'Layout', 'var(--grid-line)', true);
   const colsCtl = numCombo(g.cols, 1, 1, 24, v => {
     g.cols = Math.round(v); g.colRatios = syncRatios(g.colRatios, g.cols);
     clampElementsToPage(); renderAll();
@@ -3152,9 +3194,8 @@ function buildGridSection(){
   });
   s1.appendChild(presetWrap);
   if(g.locked) lockSection(s1);
-  wrap.appendChild(s1);
 
-  const s1b = section('Column widths');
+  const s1b = collapsibleSection(wrap, 'Column widths', 'var(--grid-line)', false);
   s1b.appendChild(buildRatioEditor(g, 'colRatios', 'cols', () => renderAll()));
   const colHint = document.createElement('div');
   colHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:6px;';
@@ -3166,9 +3207,8 @@ function buildGridSection(){
   eqColBtn.addEventListener('click', () => { pushHistory(); g.colRatios = new Array(g.cols).fill(1); renderAll(); });
   s1b.appendChild(eqColBtn);
   if(g.locked) lockSection(s1b);
-  wrap.appendChild(s1b);
 
-  const s1c = section('Row heights');
+  const s1c = collapsibleSection(wrap, 'Row heights', 'var(--grid-line)', false);
   s1c.appendChild(buildRatioEditor(g, 'rowRatios', 'rows', () => renderAll()));
   const rowHint = document.createElement('div');
   rowHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-bottom:6px;';
@@ -3180,10 +3220,9 @@ function buildGridSection(){
   eqRowBtn.addEventListener('click', () => { pushHistory(); g.rowRatios = new Array(g.rows).fill(1); renderAll(); });
   s1c.appendChild(eqRowBtn);
   if(g.locked) lockSection(s1c);
-  wrap.appendChild(s1c);
   } // end g.mode !== 'diagonal' (Layout / Column widths / Row heights)
 
-  const s2 = section('Margins');
+  const s2 = collapsibleSection(wrap, 'Margins', 'var(--margin-line)', true);
   const grid2 = document.createElement('div'); grid2.className = 'field-grid4';
   function marginField(labelText, key){
     const cell = document.createElement('div');
@@ -3198,9 +3237,8 @@ function buildGridSection(){
   grid2.appendChild(marginField('Left', 'marginLeft'));
   s2.appendChild(grid2);
   if(g.locked) lockSection(s2);
-  wrap.appendChild(s2);
 
-  const sBleed = section('Bleed');
+  const sBleed = collapsibleSection(wrap, 'Bleed', 'var(--bleed-line)', false);
   const bleedCtl = numCombo(state.bleed || 0, 1, 0, undefined, v => { state.bleed = v; clampElementsToPage(); renderAll(); });
   sBleed.appendChild(fieldRow('Bleed', bleedCtl));
   const bleedHint = document.createElement('div');
@@ -3208,25 +3246,22 @@ function buildGridSection(){
   bleedHint.textContent = 'Extra margin added around the page for print, so artwork can run past the trim edge with no risk of a white sliver after cutting. Elements can now be dragged into it; "Include bleed" in Export adds it to the file itself.';
   sBleed.appendChild(bleedHint);
   if(g.locked) lockSection(sBleed);
-  wrap.appendChild(sBleed);
 
   if(g.mode === 'modular'){
-  const s3 = section('Gutters');
+  const s3 = collapsibleSection(wrap, 'Gutters', 'var(--grid-line)', false);
   const gutterX = numCombo(g.gutterX, 1, 0, undefined, v => { g.gutterX = v; renderAll(); });
   s3.appendChild(fieldRow('Column gutter', gutterX));
   const gutterY = numCombo(g.gutterY, 1, 0, undefined, v => { g.gutterY = v; renderAll(); });
   s3.appendChild(fieldRow('Row gutter', gutterY));
   if(g.locked) lockSection(s3);
-  wrap.appendChild(s3);
   }
 
-  const s4 = section('Baseline grid');
+  const s4 = collapsibleSection(wrap, 'Baseline grid', 'var(--baseline-line)', false);
   s4.appendChild(checkboxRow('Show baseline', g.showBaseline, v => { g.showBaseline = v; renderAll(); }));
   const baseCtl = numCombo(g.baselineStep, 1, 2, undefined, v => { g.baselineStep = v; renderAll(); });
   s4.appendChild(fieldRow('Step (px)', baseCtl));
-  wrap.appendChild(s4);
 
-  const s5 = section('Display');
+  const s5 = collapsibleSection(wrap, 'Display', null, false);
   s5.appendChild(checkboxRow('Show module grid', g.showGrid, v => { g.showGrid = v; renderAll(); }));
   s5.appendChild(checkboxRow('Show margins', g.showMargins, v => { g.showMargins = v; renderAll(); }));
   const bgRow = document.createElement('div'); bgRow.className = 'field-row';
@@ -3242,9 +3277,8 @@ function buildGridSection(){
   bgInput.addEventListener('blur', () => { bgPushed = false; });
   bgCtl.appendChild(bgInput); bgRow.appendChild(bgLabel); bgRow.appendChild(bgCtl);
   s5.appendChild(bgRow);
-  wrap.appendChild(s5);
 
-  const s6 = section('Explore');
+  const s6 = collapsibleSection(wrap, 'Explore', null, false);
   const shuffleBtn = document.createElement('button');
   shuffleBtn.className = 'btn ghost'; shuffleBtn.style.width = '100%'; shuffleBtn.style.justifyContent = 'center';
   shuffleBtn.textContent = '🎲 Shuffle layout';
@@ -3254,7 +3288,6 @@ function buildGridSection(){
   shuffleHint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-top:6px;';
   shuffleHint.textContent = 'Moves every element to a random module span. Undo (⌘Z) to step back through variations.';
   s6.appendChild(shuffleHint);
-  wrap.appendChild(s6);
 
   return wrap;
 }
@@ -3658,6 +3691,14 @@ function buildTextStylesSection(el){
         renderPropsPanel();
         toast('Applied "' + style.name + '"');
       });
+      const updateBtn = document.createElement('button');
+      updateBtn.style.cssText = 'background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:12px; padding:4px;';
+      updateBtn.innerHTML = '&#8635;'; updateBtn.title = 'Update "' + style.name + '" to match this block’s current typography';
+      updateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        TEXT_STYLE_FIELDS.forEach(f => { style[f] = el[f]; });
+        toast('Updated "' + style.name + '"');
+      });
       const delBtn = document.createElement('button');
       delBtn.style.cssText = 'background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:4px;';
       delBtn.textContent = '✕'; delBtn.title = 'Delete this style';
@@ -3666,7 +3707,7 @@ function buildTextStylesSection(el){
         state.textStyles = state.textStyles.filter(st => st.id !== style.id);
         renderPropsPanel();
       });
-      row.appendChild(applyBtn); row.appendChild(delBtn);
+      row.appendChild(applyBtn); row.appendChild(updateBtn); row.appendChild(delBtn);
       list.appendChild(row);
     });
     s.appendChild(list);
