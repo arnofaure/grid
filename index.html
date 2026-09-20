@@ -767,6 +767,7 @@ let state = {
   },
   elements: [],
   selectedId: null,
+  multiSelectIds: [],
   pages: [],
   currentPageIndex: 0
 };
@@ -819,6 +820,7 @@ function restoreSnapshot(json){
   state.canvasW = data.canvasW; state.canvasH = data.canvasH; state.canvasUnit = data.canvasUnit;
   state.bgColor = data.bgColor; state.bleed = data.bleed || 0; state.grid = data.grid; state.elements = data.elements;
   state.selectedId = null;
+  state.multiSelectIds = [];
   wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
   applyUnitStep();
   renderAll();
@@ -862,6 +864,7 @@ function loadPageData(data){
   state.grid = JSON.parse(JSON.stringify(data.grid));
   state.elements = JSON.parse(JSON.stringify(data.elements));
   state.selectedId = null;
+  state.multiSelectIds = [];
 }
 // Writes the live fields back into the pages array without switching —
 // called before anything reads state.pages (export/save project, page
@@ -1364,10 +1367,16 @@ function addElement(el){
   renderAll();
 }
 function getElement(id){ return state.elements.find(e => e.id === id); }
-function deleteElement(id){
+function isElementSelected(id){
+  return state.multiSelectIds.length > 1 ? state.multiSelectIds.includes(id) : id === state.selectedId;
+}
+// Splices the element out and heals any text-chain link broken by its
+// removal — no history push, no render, so callers can batch several of
+// these under a single pushHistory()/renderAll() (see deleteElement and
+// deleteMultiSelected).
+function removeElementById(id){
   const idx = state.elements.findIndex(e => e.id === id);
   if(idx === -1) return;
-  pushHistory();
   state.elements.splice(idx, 1);
   if(state.selectedId === id) state.selectedId = null;
   // Heal any chain broken by the deletion: whoever linked into the
@@ -1384,7 +1393,22 @@ function deleteElement(id){
       }
     }
   });
+}
+function deleteElement(id){
+  if(!getElement(id)) return;
+  pushHistory();
+  removeElementById(id);
   renderAll();
+}
+function deleteMultiSelected(){
+  const ids = state.multiSelectIds.slice();
+  if(!ids.length) return;
+  pushHistory();
+  ids.forEach(removeElementById);
+  state.multiSelectIds = [];
+  state.selectedId = null;
+  renderAll();
+  toast(ids.length + ' elements deleted');
 }
 
 /* ---------------------------------------------------------------------
@@ -1767,7 +1791,7 @@ function renderElements(){
   state.elements.forEach(el => {
     if(el.visible === false) return;
     const box = document.createElement('div');
-    box.className = 'el-box' + (el.id === state.selectedId ? ' selected' : '');
+    box.className = 'el-box' + (isElementSelected(el.id) ? ' selected' : '');
     box.id = 'box-' + el.id;
     box.style.left = (el.x * pageScale) + 'px';
     box.style.top = (el.y * pageScale) + 'px';
@@ -1811,7 +1835,7 @@ function renderElements(){
     }
 
     box.addEventListener('pointerdown', (e) => onElementPointerDown(e, el));
-    if(el.id === state.selectedId){
+    if(state.multiSelectIds.length <= 1 && el.id === state.selectedId){
       ['nw','n','ne','w','e','sw','s','se'].forEach(dir => {
         const h = document.createElement('div');
         h.className = 'el-handle ' + dir;
@@ -2263,8 +2287,72 @@ function onElementPointerDown(e, el){
   const box = document.getElementById('box-' + el.id);
   if(box && box.classList.contains('crop-mode')) return; // the pan/zoom listener owns pointer input while cropping
   e.stopPropagation();
+  if(e.shiftKey){
+    toggleMultiSelect(el.id);
+    return;
+  }
+  if(state.multiSelectIds.length > 1 && state.multiSelectIds.includes(el.id)){
+    // Dragging any box that's part of the current multi-selection moves
+    // the whole selection together, without collapsing it back to one.
+    startGroupDrag(e, el);
+    return;
+  }
   selectElement(el.id, true);
   startDrag(e, el);
+}
+
+// Group-drag: every selected element keeps its own offset from the
+// dragged (leader) box; only the leader's position is snapped to the
+// grid each tick, and the same resulting delta is applied to the rest —
+// simpler and more predictable than snapping every box independently.
+function startGroupDrag(e, leaderEl){
+  const ids = state.multiSelectIds.slice();
+  const boxes = {}, origins = {};
+  ids.forEach(id => {
+    const el = getElement(id);
+    if(!el) return;
+    boxes[id] = document.getElementById('box-' + id);
+    origins[id] = { x: el.x, y: el.y };
+  });
+  const startX = e.clientX, startY = e.clientY;
+  const origLeaderX = leaderEl.x, origLeaderY = leaderEl.y;
+  const geo = computeGrid();
+  const thresholdX = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  const thresholdY = SNAP_THRESHOLD_SCREEN_PX / pageScale;
+  let moved = false;
+
+  function onMove(ev){
+    if(!moved) pushHistory();
+    moved = true;
+    const dx = (ev.clientX - startX) / pageScale;
+    const dy = (ev.clientY - startY) / pageScale;
+    let nx = origLeaderX + dx, ny = origLeaderY + dy;
+    if(geo.mode === 'diagonal'){
+      const centerX = nx + leaderEl.w/2, centerY = ny + leaderEl.h/2;
+      const snapped = snapToDiagLines(centerX, centerY, geo, Math.max(thresholdX, thresholdY) * 1.4);
+      if(snapped){ nx = snapped.x - leaderEl.w/2; ny = snapped.y - leaderEl.h/2; }
+    } else {
+      nx = snapValue(nx, geo.snapX, thresholdX);
+      ny = snapValue(ny, geo.snapY, thresholdY);
+    }
+    const deltaX = nx - origLeaderX, deltaY = ny - origLeaderY;
+    ids.forEach(id => {
+      const el = getElement(id), box = boxes[id];
+      if(!el || !box) return;
+      const ex = clamp(origins[id].x + deltaX, -state.bleed, state.canvasW + state.bleed - el.w);
+      const ey = clamp(origins[id].y + deltaY, -state.bleed, state.canvasH + state.bleed - el.h);
+      el.x = ex; el.y = ey;
+      box.style.left = (ex*pageScale) + 'px';
+      box.style.top = (ey*pageScale) + 'px';
+    });
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if(moved) renderPropsPanel();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
 }
 
 function startDrag(e, el){
@@ -2419,27 +2507,64 @@ function startResize(e, el, dir){
 --------------------------------------------------------------------- */
 function selectElement(id, skipFullRender){
   state.selectedId = id;
+  state.multiSelectIds = [];
   if(skipFullRender){
-    document.querySelectorAll('.el-box').forEach(b => b.classList.remove('selected'));
-    document.querySelectorAll('.el-handle').forEach(h => h.remove());
-    if(id){
-      const box = document.getElementById('box-' + id);
-      if(box){
-        box.classList.add('selected');
-        const el = getElement(id);
-        ['nw','n','ne','w','e','sw','s','se'].forEach(dir => {
-          const h = document.createElement('div');
-          h.className = 'el-handle ' + dir;
-          h.addEventListener('pointerdown', (e) => { e.stopPropagation(); startResize(e, el, dir); });
-          box.appendChild(h);
-        });
-      }
-    }
+    applySelectionVisuals();
     renderLayersList();
     renderPropsPanel();
   } else {
     renderAll();
   }
+}
+// Redraws the .selected outline (and, for a single selection, the
+// resize handles) from state.selectedId/multiSelectIds without
+// rebuilding any box — used after both single selectElement() and
+// multi-select toggling so a shift-click never tears down a box mid-drag.
+function applySelectionVisuals(){
+  document.querySelectorAll('.el-box').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.el-handle').forEach(h => h.remove());
+  if(state.multiSelectIds.length > 1){
+    state.multiSelectIds.forEach(id => {
+      const box = document.getElementById('box-' + id);
+      if(box) box.classList.add('selected');
+    });
+    return;
+  }
+  if(!state.selectedId) return;
+  const box = document.getElementById('box-' + state.selectedId);
+  if(!box) return;
+  box.classList.add('selected');
+  const el = getElement(state.selectedId);
+  ['nw','n','ne','w','e','sw','s','se'].forEach(dir => {
+    const h = document.createElement('div');
+    h.className = 'el-handle ' + dir;
+    h.addEventListener('pointerdown', (e) => { e.stopPropagation(); startResize(e, el, dir); });
+    box.appendChild(h);
+  });
+}
+// Shift-click a box (canvas or layer row) to add/remove it from the
+// current multi-selection. Falls back to an ordinary single selection
+// once membership drops to 0 or 1 — multiSelectIds only exists as a
+// distinct thing while 2+ elements are actually selected together.
+function toggleMultiSelect(id){
+  const idx = state.multiSelectIds.indexOf(id);
+  if(idx === -1){
+    if(state.multiSelectIds.length === 0 && state.selectedId && state.selectedId !== id){
+      state.multiSelectIds.push(state.selectedId);
+    }
+    state.multiSelectIds.push(id);
+  } else {
+    state.multiSelectIds.splice(idx, 1);
+  }
+  if(state.multiSelectIds.length <= 1){
+    state.selectedId = state.multiSelectIds[0] || null;
+    state.multiSelectIds = [];
+  } else {
+    state.selectedId = id;
+  }
+  applySelectionVisuals();
+  renderLayersList();
+  renderPropsPanel();
 }
 
 /* ---------------------------------------------------------------------
@@ -2457,7 +2582,7 @@ function renderLayersList(){
   }
   [...state.elements].slice().reverse().forEach(el => {
     const row = document.createElement('div');
-    row.className = 'layer-row' + (el.id===state.selectedId?' selected':'') + (el.visible===false?' disabled':'');
+    row.className = 'layer-row' + (isElementSelected(el.id)?' selected':'') + (el.visible===false?' disabled':'');
     row.dataset.elId = el.id;
 
     const grip = document.createElement('div');
@@ -2482,7 +2607,7 @@ function renderLayersList(){
     vis.addEventListener('click', (e) => { e.stopPropagation(); el.visible = el.visible === false ? true : false; renderAll(); });
 
     row.appendChild(grip); row.appendChild(icon); row.appendChild(name); row.appendChild(vis);
-    row.addEventListener('click', () => selectElement(el.id));
+    row.addEventListener('click', (e) => { if(e.shiftKey) toggleMultiSelect(el.id); else selectElement(el.id); });
     list.appendChild(row);
   });
 }
@@ -2662,6 +2787,11 @@ function renderPropsPanel(){
   const body = document.getElementById('props-body');
   const title = document.getElementById('props-title');
   body.innerHTML = '';
+  if(state.multiSelectIds.length > 1){
+    title.textContent = 'SELECTION';
+    body.appendChild(buildMultiSelectPanel());
+    return;
+  }
   const el = state.selectedId ? getElement(state.selectedId) : null;
   if(!el){
     title.textContent = 'GRID';
@@ -3346,6 +3476,109 @@ function buildDeleteSection(el){
 }
 
 /* ---------------------------------------------------------------------
+   MULTI-SELECT — align/distribute act on the bounding box of every
+   currently multi-selected element; alignment moves each element flush
+   to that shared box's edge/center, distribution (3+ elements only)
+   equalizes the gaps between their edges along one axis, sorted by
+   current position so the two extremes stay put and everything between
+   spaces out evenly.
+--------------------------------------------------------------------- */
+function selectionBounds(ids){
+  const els = ids.map(getElement).filter(Boolean);
+  return {
+    minX: Math.min(...els.map(e => e.x)), minY: Math.min(...els.map(e => e.y)),
+    maxX: Math.max(...els.map(e => e.x + e.w)), maxY: Math.max(...els.map(e => e.y + e.h))
+  };
+}
+function alignSelection(kind){
+  const ids = state.multiSelectIds;
+  const els = ids.map(getElement).filter(Boolean);
+  if(els.length < 2) return;
+  pushHistory();
+  const b = selectionBounds(ids);
+  const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+  els.forEach(el => {
+    if(kind === 'left') el.x = b.minX;
+    else if(kind === 'hcenter') el.x = cx - el.w/2;
+    else if(kind === 'right') el.x = b.maxX - el.w;
+    else if(kind === 'top') el.y = b.minY;
+    else if(kind === 'vcenter') el.y = cy - el.h/2;
+    else if(kind === 'bottom') el.y = b.maxY - el.h;
+  });
+  clampElementsToPage();
+  renderAll();
+}
+function distributeSelection(axis){
+  let els = state.multiSelectIds.map(getElement).filter(Boolean);
+  if(els.length < 3){ toast('Select at least 3 elements to distribute'); return; }
+  pushHistory();
+  if(axis === 'h'){
+    els = els.slice().sort((a,b) => a.x - b.x);
+    const first = els[0], last = els[els.length-1];
+    const totalSpan = (last.x + last.w) - first.x;
+    const totalW = els.reduce((s,e) => s + e.w, 0);
+    const gap = (totalSpan - totalW) / (els.length - 1);
+    let cursor = first.x + first.w + gap;
+    for(let i=1;i<els.length-1;i++){ els[i].x = cursor; cursor += els[i].w + gap; }
+  } else {
+    els = els.slice().sort((a,b) => a.y - b.y);
+    const first = els[0], last = els[els.length-1];
+    const totalSpan = (last.y + last.h) - first.y;
+    const totalH = els.reduce((s,e) => s + e.h, 0);
+    const gap = (totalSpan - totalH) / (els.length - 1);
+    let cursor = first.y + first.h + gap;
+    for(let i=1;i<els.length-1;i++){ els[i].y = cursor; cursor += els[i].h + gap; }
+  }
+  clampElementsToPage();
+  renderAll();
+}
+function buildMultiSelectPanel(){
+  const wrap = document.createElement('div');
+  const s = section(state.multiSelectIds.length + ' elements selected');
+
+  const alignHRow = document.createElement('div'); alignHRow.className = 'seg-control';
+  [['left','⇤ Left'],['hcenter','↔ Center'],['right','Right ⇥']].forEach(([k,label]) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.addEventListener('click', () => alignSelection(k));
+    alignHRow.appendChild(b);
+  });
+  s.appendChild(fieldRow('Align horizontal', alignHRow));
+
+  const alignVRow = document.createElement('div'); alignVRow.className = 'seg-control';
+  [['top','Top'],['vcenter','Middle'],['bottom','Bottom']].forEach(([k,label]) => {
+    const b = document.createElement('button'); b.textContent = label;
+    b.addEventListener('click', () => alignSelection(k));
+    alignVRow.appendChild(b);
+  });
+  s.appendChild(fieldRow('Align vertical', alignVRow));
+
+  const distRow = document.createElement('div'); distRow.style.cssText = 'display:flex; gap:8px; margin-top:4px;';
+  const distH = document.createElement('button'); distH.className = 'btn ghost'; distH.style.cssText = 'flex:1; justify-content:center;';
+  distH.textContent = 'Distribute ↔'; distH.title = 'Equalize horizontal gaps (3+ elements)';
+  distH.addEventListener('click', () => distributeSelection('h'));
+  const distV = document.createElement('button'); distV.className = 'btn ghost'; distV.style.cssText = 'flex:1; justify-content:center;';
+  distV.textContent = 'Distribute ↕'; distV.title = 'Equalize vertical gaps (3+ elements)';
+  distV.addEventListener('click', () => distributeSelection('v'));
+  distRow.appendChild(distH); distRow.appendChild(distV);
+  s.appendChild(distRow);
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:var(--text-dim); font-size:10.5px; line-height:1.5; margin-top:8px;';
+  hint.textContent = 'Drag any one of them to move the whole selection together. Arrow keys nudge by 1px (Shift 10px). Shift-click a box (or a layer) to add/remove it from the selection.';
+  s.appendChild(hint);
+  wrap.appendChild(s);
+
+  const del = document.createElement('div'); del.className = 'props-section';
+  const delBtn = document.createElement('button'); delBtn.className = 'danger-btn';
+  delBtn.textContent = 'Delete ' + state.multiSelectIds.length + ' elements';
+  delBtn.addEventListener('click', () => deleteMultiSelected());
+  del.appendChild(delBtn);
+  wrap.appendChild(del);
+
+  return wrap;
+}
+
+/* ---------------------------------------------------------------------
    IMAGE UPLOAD
 --------------------------------------------------------------------- */
 let pendingUploadElId = null;
@@ -3516,12 +3749,31 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if((e.key === 'Delete' || e.key === 'Backspace') && state.selectedId){
-    e.preventDefault(); deleteElement(state.selectedId);
+  if(e.key === 'Delete' || e.key === 'Backspace'){
+    if(state.multiSelectIds.length > 1){ e.preventDefault(); deleteMultiSelected(); }
+    else if(state.selectedId){ e.preventDefault(); deleteElement(state.selectedId); }
   }
   if(e.key === 'Escape'){
     if(activeCropEl){ const box = document.getElementById('box-' + activeCropEl); if(box) exitCropMode(box); }
     selectElement(null, true);
+  }
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+    const ids = state.multiSelectIds.length > 1 ? state.multiSelectIds : (state.selectedId ? [state.selectedId] : []);
+    if(ids.length){
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      pushHistory();
+      ids.forEach(id => {
+        const el = getElement(id);
+        if(!el) return;
+        el.x = clamp(el.x + dx, -state.bleed, state.canvasW + state.bleed - el.w);
+        el.y = clamp(el.y + dy, -state.bleed, state.canvasH + state.bleed - el.h);
+      });
+      renderElementPositions();
+      renderPropsPanel();
+    }
   }
   if(e.key.toLowerCase() === 'g' && !meta){
     e.preventDefault();
