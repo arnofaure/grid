@@ -791,6 +791,8 @@ let state = {
   elements: [],
   selectedId: null,
   multiSelectIds: [],
+  textStyles: [],
+  pageTemplates: [],
   pages: [],
   currentPageIndex: 0
 };
@@ -2834,7 +2836,7 @@ function renderPropsPanel(){
   title.textContent = el.type.toUpperCase();
   body.appendChild(buildElementCommonSection(el));
   if(el.type === 'image') body.appendChild(buildImageSection(el));
-  if(el.type === 'text') body.appendChild(buildTextSection(el));
+  if(el.type === 'text'){ body.appendChild(buildTextSection(el)); body.appendChild(buildTextStylesSection(el)); }
   if(el.type === 'shape') body.appendChild(buildShapeSection(el));
   body.appendChild(buildDeleteSection(el));
 }
@@ -3495,6 +3497,66 @@ function buildTextSection(el){
     });
     s.appendChild(fieldRow('Link to next block', linkSel));
   }
+
+  return s;
+}
+
+/* ---------------------------------------------------------------------
+   TEXT STYLE PRESETS — a small, document-wide library of named
+   typography combinations (font, size, weight, spacing, color, align —
+   not position/size/box-specific fields), saved to state.textStyles and
+   round-tripped through the project file. Saving/applying only ever
+   touches the fields it stores, so switching styles never moves or
+   resizes the block itself.
+--------------------------------------------------------------------- */
+const TEXT_STYLE_FIELDS = ['fontFamily','googleFont','fontSize','lineHeight','letterSpacing','weight','italic','align','color'];
+function buildTextStylesSection(el){
+  const s = section('Text styles');
+
+  if(state.textStyles.length){
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex; flex-direction:column; gap:4px; margin-bottom:9px;';
+    state.textStyles.forEach(style => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; align-items:center; gap:6px;';
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'btn ghost'; applyBtn.style.cssText = 'flex:1; justify-content:flex-start; text-align:left;';
+      applyBtn.textContent = style.name;
+      applyBtn.addEventListener('click', () => {
+        pushHistory();
+        TEXT_STYLE_FIELDS.forEach(f => { if(style[f] !== undefined) el[f] = style[f]; });
+        if(el.googleFont) ensureGoogleFont(el.googleFont);
+        refreshElementVisuals();
+        renderPropsPanel();
+        toast('Applied "' + style.name + '"');
+      });
+      const delBtn = document.createElement('button');
+      delBtn.style.cssText = 'background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:4px;';
+      delBtn.textContent = '✕'; delBtn.title = 'Delete this style';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.textStyles = state.textStyles.filter(st => st.id !== style.id);
+        renderPropsPanel();
+      });
+      row.appendChild(applyBtn); row.appendChild(delBtn);
+      list.appendChild(row);
+    });
+    s.appendChild(list);
+  }
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn ghost'; saveBtn.style.cssText = 'width:100%; justify-content:center;';
+  saveBtn.textContent = 'Save current as style…';
+  saveBtn.addEventListener('click', () => {
+    const name = prompt('Style name', el.googleFont || (el.fontFamily || '').split(',')[0].replace(/"/g,''));
+    if(!name) return;
+    const style = { id: uid(), name: name.trim() || 'Style' };
+    TEXT_STYLE_FIELDS.forEach(f => { style[f] = el[f]; });
+    state.textStyles.push(style);
+    renderPropsPanel();
+    toast('Style saved');
+  });
+  s.appendChild(saveBtn);
 
   return s;
 }
@@ -4487,7 +4549,9 @@ function exportProjectFile(){
   const doc = {
     app: 'grid-studio', fileVersion: PROJECT_FILE_VERSION,
     currentPageIndex: state.currentPageIndex,
-    pages: state.pages
+    pages: state.pages,
+    textStyles: state.textStyles,
+    pageTemplates: state.pageTemplates
   };
   const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
   downloadBlob(blob, 'grid-studio-project.json');
@@ -4503,6 +4567,8 @@ function importProjectFile(file){
     state.pages = doc.pages;
     state.currentPageIndex = clamp(doc.currentPageIndex || 0, 0, state.pages.length - 1);
     loadPageData(state.pages[state.currentPageIndex]);
+    state.textStyles = doc.textStyles || [];
+    state.pageTemplates = doc.pageTemplates || [];
     undoStack = []; redoStack = [];
     wInput.value = fmtDim(state.canvasW); hInput.value = fmtDim(state.canvasH); unitSelect.value = state.canvasUnit;
     applyUnitStep();
