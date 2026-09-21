@@ -1955,32 +1955,28 @@ function renderElements(){
     const box = document.getElementById('box-' + el.id);
     if(!box) return;
     if(el.autoFit) autofitText(el, box);
-    applyTextOverflowMask(el, box);
+    applyTextOverflowClip(el, box);
   });
 }
 
 // Auto-fit guarantees text never overflows; without it, a long block
 // gets clipped by .el-text-clip's overflow:hidden, which otherwise cuts
-// straight through the last visible line — ugly, and easy to misread
-// as the text being broken. Fading that edge out (only the edge that's
-// actually being cropped, based on vAlign) reads as an intentional
-// "more content below" cue instead of a hard, arbitrary cut.
-function applyTextOverflowMask(el, box){
+// straight through the last visible line — ugly, and easy to misread as
+// broken text. Rather than showing that partial line at all (even
+// faded), this hides it completely: fitTextToBox (same word-boundary
+// measurement the text-linking chain uses) finds how much of the
+// content fits with zero overflow, and only that whole-word, whole-line
+// amount is rendered — el.content itself is untouched, so editing still
+// shows everything that was typed.
+function applyTextOverflowClip(el, box){
   const clip = box.querySelector('.el-text-clip');
   const txt = box.querySelector('.el-text');
   if(!clip || !txt || clip.classList.contains('editing')) return;
-  clip.style.maskImage = ''; clip.style.webkitMaskImage = '';
   if(el.vAlign === 'justify') return; // multiple line children spread via space-between — different overflow shape, left alone
   const overflow = txt.scrollHeight - clip.clientHeight;
   if(overflow <= 0.5 || clip.clientHeight <= 0) return;
-  const fadePx = Math.min(28, clip.clientHeight * 0.35);
-  const pct = (fadePx / clip.clientHeight * 100).toFixed(1);
-  let gradient;
-  if(el.vAlign === 'bottom') gradient = `linear-gradient(to bottom, transparent 0%, black ${pct}%)`;
-  else if(el.vAlign === 'middle') gradient = `linear-gradient(to bottom, transparent 0%, black ${pct}%, black ${100-pct}%, transparent 100%)`;
-  else gradient = `linear-gradient(to bottom, black 0%, black ${100-pct}%, transparent 100%)`;
-  clip.style.maskImage = gradient;
-  clip.style.webkitMaskImage = gradient;
+  const { shown } = fitTextToBox(el.content || '', el, box);
+  if(shown.length < (el.content || '').length) txt.textContent = shown;
 }
 
 function applyTextStyle(txt, el){
@@ -2219,7 +2215,7 @@ function reflowChain(headEl){
       blockEl.content = remaining;
       remaining = '';
     }
-    if(box){ renderTextContent(box, blockEl); applyTextOverflowMask(blockEl, box); }
+    if(box){ renderTextContent(box, blockEl); applyTextOverflowClip(blockEl, box); }
   });
 }
 
@@ -2240,7 +2236,7 @@ function refreshElementVisuals(){
       if(isPartOfChain(el)){ chainHeads.add(chainHead(el)); return; } // reflowed together, once, below
       renderTextContent(box, el);
       if(el.autoFit) autofitText(el, box);
-      applyTextOverflowMask(el, box);
+      applyTextOverflowClip(el, box);
     } else if(el.type === 'image'){
       const img = box.querySelector('img');
       if(img) applyImageStyle(img, el);
@@ -2270,7 +2266,6 @@ function enterTextEditMode(el, box){
   clip.innerHTML = '';
   clip.classList.add('editing'); // lets typed text overflow visibly instead of clipping mid-edit
   clip.style.justifyContent = 'flex-start';
-  clip.style.maskImage = ''; clip.style.webkitMaskImage = ''; // don't fade out text while actively editing it
   const txt = document.createElement('div');
   txt.className = 'el-text editing';
   txt.contentEditable = 'true';
@@ -2303,7 +2298,7 @@ function enterTextEditMode(el, box){
       el.content = content;
       renderTextContent(box, el);
       if(el.autoFit) autofitText(el, box);
-      applyTextOverflowMask(el, box);
+      applyTextOverflowClip(el, box);
     }
   }
   txt.addEventListener('blur', finish);
@@ -3562,7 +3557,7 @@ function buildTextSection(el){
     const approxChars = Math.max(20, (el.w * el.h) / (el.fontSize * el.fontSize) * 3.2);
     const wordCount = clamp(Math.round(approxChars / 5.5), 6, 220);
     el.content = loremIpsum(wordCount);
-    if(box){ renderTextContent(box, el); if(el.autoFit) autofitText(el, box); applyTextOverflowMask(el, box); }
+    if(box){ renderTextContent(box, el); if(el.autoFit) autofitText(el, box); applyTextOverflowClip(el, box); }
   });
   s.appendChild(loremBtn);
 
