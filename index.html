@@ -2217,10 +2217,16 @@ function fitTextToBox(fullText, el, box){
 // the target box size and the font size scale by the same factor.
 function exportTextContent(el){
   const full = el.content || '';
-  if(el.vAlign === 'justify') return full; // paragraphs spread via flex space-between — not a simple top-down fit
+  if(el.vAlign === 'justify' || !full) return full; // paragraphs spread via flex space-between — not a simple top-down fit
   const box = document.getElementById('box-' + el.id);
-  if(!box) return full;
-  return fitTextToBox(full, el, box).shown;
+  // If the box isn't there or hasn't actually been laid out (0 width/
+  // height — e.g. the stage hadn't finished sizing itself yet),
+  // fitTextToBox has nothing real to measure against and would report
+  // "nothing fits", silently erasing the text from the export. Showing
+  // everything unfitted is a far safer failure than showing nothing.
+  if(!box || box.clientWidth <= 0 || box.clientHeight <= 0) return full;
+  const shown = fitTextToBox(full, el, box).shown;
+  return shown || full;
 }
 function reflowChain(headEl){
   if(!headEl || headEl.type !== 'text') return;
