@@ -4649,7 +4649,59 @@ function applyShapeStylePrint(box, el, suffix){
   box.style.clipPath = el.shapeType === 'diamond' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'none';
 }
 
-function buildPrintPage(includeBleed){
+// Same guide lines as the PNG/SVG export paths (colBounds/rowBounds for
+// modular/Phi, diagonalGuideSegments for the diagonal lattice) — PDF
+// export never drew any of these before, so "Include grid guides" was
+// silently ignored for it. Built as a real SVG (not print-only CSS)
+// and layered into the print page at the same 0..canvasW/H coordinates
+// every element already uses there.
+function buildPrintGuidesOverlay(){
+  const w = state.canvasW, h = state.canvasH;
+  const g = state.grid, geo = computeGrid();
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.style.cssText = 'position:absolute; inset:0; overflow:visible; pointer-events:none;';
+  if(geo.mode === 'diagonal'){
+    const mb = geo.marginBox;
+    const clipId = 'print-diag-clip';
+    const clipPath = document.createElementNS(SVGNS, 'clipPath'); clipPath.setAttribute('id', clipId);
+    const clipRect = document.createElementNS(SVGNS, 'rect');
+    clipRect.setAttribute('x', fx(mb.x0)); clipRect.setAttribute('y', fx(mb.y0));
+    clipRect.setAttribute('width', fx(mb.x1-mb.x0)); clipRect.setAttribute('height', fx(mb.y1-mb.y0));
+    clipPath.appendChild(clipRect); svg.appendChild(clipPath);
+    const gg = document.createElementNS(SVGNS, 'g');
+    gg.setAttribute('clip-path', `url(#${clipId})`);
+    gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
+    diagonalGuideSegments(geo).forEach(s => {
+      const l = document.createElementNS(SVGNS,'line');
+      l.setAttribute('x1',fx(s.x1)); l.setAttribute('y1',fx(s.y1)); l.setAttribute('x2',fx(s.x2)); l.setAttribute('y2',fx(s.y2));
+      gg.appendChild(l);
+    });
+    svg.appendChild(gg);
+  } else {
+    const gg = document.createElementNS(SVGNS, 'g');
+    gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
+    geo.colBounds.forEach(c => {
+      [c.start, c.end].forEach(cx => {
+        const l = document.createElementNS(SVGNS,'line');
+        l.setAttribute('x1',fx(cx)); l.setAttribute('y1',fx(g.marginTop)); l.setAttribute('x2',fx(cx)); l.setAttribute('y2',fx(h-g.marginBottom));
+        gg.appendChild(l);
+      });
+    });
+    geo.rowBounds.forEach(r => {
+      [r.start, r.end].forEach(ry => {
+        const l = document.createElementNS(SVGNS,'line');
+        l.setAttribute('x1',fx(g.marginLeft)); l.setAttribute('y1',fx(ry)); l.setAttribute('x2',fx(w-g.marginRight)); l.setAttribute('y2',fx(ry));
+        gg.appendChild(l);
+      });
+    });
+    svg.appendChild(gg);
+  }
+  return svg;
+}
+
+function buildPrintPage(includeBleed, includeGuides){
   const root = document.getElementById('print-root');
   root.innerHTML = '';
   const suffix = state.canvasUnit === 'px' ? 'px' : state.canvasUnit;
@@ -4723,12 +4775,15 @@ function buildPrintPage(includeBleed){
     trim.appendChild(box);
   });
 
+  if(includeGuides) trim.appendChild(buildPrintGuidesOverlay());
+
   root.appendChild(page);
 }
 
 document.getElementById('export-pdf').addEventListener('click', () => {
   const includeBleed = state.bleed > 0 && document.getElementById('export-bleed').checked;
-  buildPrintPage(includeBleed);
+  const includeGuides = document.getElementById('export-guides').checked;
+  buildPrintPage(includeBleed, includeGuides);
   exportModal.classList.remove('show');
   // Give Google Fonts / layout a beat to settle before the print
   // dialog snapshots the page (fonts requested for the first time in
