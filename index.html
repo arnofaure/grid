@@ -4376,22 +4376,63 @@ async function drawTextElement(ctx, el, x, y, w, h, scale){
   ctx.restore();
 }
 
+// The diagonal lattice's own colBounds/rowBounds are just the whole
+// margin box (see computeDiagonalGrid) — real column/row placement
+// snaps to diagPoints instead, so the generic colBounds/rowBounds guide
+// drawing below (built for modular/Phi) would only ever render the
+// margin rectangle for this mode. This computes the actual rotated
+// lattice line segments, in canvas coordinates, shared by both the PNG
+// (canvas 2D) and SVG export guide paths so diagonal exports show the
+// same lattice the on-screen overlay does (see buildGridOverlaySVG).
+function diagonalGuideSegments(geo){
+  const { diagCenter, diagAngle, diagCellSize, marginBox } = geo;
+  const diagLen = Math.sqrt(Math.pow(marginBox.x1-marginBox.x0,2) + Math.pow(marginBox.y1-marginBox.y0,2));
+  const half = diagLen;
+  const N = Math.min(80, Math.ceil(diagLen / (2*diagCellSize)) + 2);
+  const rad = diagAngle * Math.PI/180;
+  const cosA = Math.cos(rad), sinA = Math.sin(rad);
+  function rot(lx, ly){ return { x: diagCenter.x + lx*cosA - ly*sinA, y: diagCenter.y + lx*sinA + ly*cosA }; }
+  const segments = [];
+  for(let i=-N;i<=N;i++){
+    const lx = i*diagCellSize;
+    const a = rot(lx, -half), b = rot(lx, half);
+    segments.push({x1:a.x, y1:a.y, x2:b.x, y2:b.y});
+    const ly = i*diagCellSize;
+    const c = rot(-half, ly), d = rot(half, ly);
+    segments.push({x1:c.x, y1:c.y, x2:d.x, y2:d.y});
+  }
+  return segments;
+}
+
 function drawGuidesOnCanvas(ctx, scale, offset){
   offset = offset || 0;
   const g = state.grid, geo = computeGrid();
   ctx.save();
   ctx.lineWidth = Math.max(0.5, scale*0.75);
   ctx.strokeStyle = '#4F9C8F';
-  geo.colBounds.forEach(c => {
-    [c.start, c.end].forEach(cx => {
-      ctx.beginPath(); ctx.moveTo(offset+cx*scale, offset+g.marginTop*scale); ctx.lineTo(offset+cx*scale, offset+(state.canvasH-g.marginBottom)*scale); ctx.stroke();
+  if(geo.mode === 'diagonal'){
+    const mb = geo.marginBox;
+    ctx.beginPath();
+    ctx.rect(offset+mb.x0*scale, offset+mb.y0*scale, (mb.x1-mb.x0)*scale, (mb.y1-mb.y0)*scale);
+    ctx.clip();
+    diagonalGuideSegments(geo).forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(offset+s.x1*scale, offset+s.y1*scale);
+      ctx.lineTo(offset+s.x2*scale, offset+s.y2*scale);
+      ctx.stroke();
     });
-  });
-  geo.rowBounds.forEach(r => {
-    [r.start, r.end].forEach(ry => {
-      ctx.beginPath(); ctx.moveTo(offset+g.marginLeft*scale, offset+ry*scale); ctx.lineTo(offset+(state.canvasW-g.marginRight)*scale, offset+ry*scale); ctx.stroke();
+  } else {
+    geo.colBounds.forEach(c => {
+      [c.start, c.end].forEach(cx => {
+        ctx.beginPath(); ctx.moveTo(offset+cx*scale, offset+g.marginTop*scale); ctx.lineTo(offset+cx*scale, offset+(state.canvasH-g.marginBottom)*scale); ctx.stroke();
+      });
     });
-  });
+    geo.rowBounds.forEach(r => {
+      [r.start, r.end].forEach(ry => {
+        ctx.beginPath(); ctx.moveTo(offset+g.marginLeft*scale, offset+ry*scale); ctx.lineTo(offset+(state.canvasW-g.marginRight)*scale, offset+ry*scale); ctx.stroke();
+      });
+    });
+  }
   ctx.restore();
 }
 
@@ -4514,23 +4555,42 @@ function buildExportSVG(includeGuides, transparent, includeBleed){
 
   if(includeGuides){
     const g = state.grid, geo = computeGrid();
-    const gg = doc.createElementNS(SVGNS, 'g');
-    gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
-    geo.colBounds.forEach(c => {
-      [c.start, c.end].forEach(cx => {
+    if(geo.mode === 'diagonal'){
+      const mb = geo.marginBox;
+      const clipId = 'export-diag-clip';
+      const clipPath = doc.createElementNS(SVGNS, 'clipPath'); clipPath.setAttribute('id', clipId);
+      const clipRect = doc.createElementNS(SVGNS, 'rect');
+      clipRect.setAttribute('x', fx(mb.x0)); clipRect.setAttribute('y', fx(mb.y0));
+      clipRect.setAttribute('width', fx(mb.x1-mb.x0)); clipRect.setAttribute('height', fx(mb.y1-mb.y0));
+      clipPath.appendChild(clipRect); svg.appendChild(clipPath);
+      const gg = doc.createElementNS(SVGNS, 'g');
+      gg.setAttribute('clip-path', `url(#${clipId})`);
+      gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
+      diagonalGuideSegments(geo).forEach(s => {
         const l = doc.createElementNS(SVGNS,'line');
-        l.setAttribute('x1',fx(cx)); l.setAttribute('y1',fx(g.marginTop)); l.setAttribute('x2',fx(cx)); l.setAttribute('y2',fx(h-g.marginBottom));
+        l.setAttribute('x1',fx(s.x1)); l.setAttribute('y1',fx(s.y1)); l.setAttribute('x2',fx(s.x2)); l.setAttribute('y2',fx(s.y2));
         gg.appendChild(l);
       });
-    });
-    geo.rowBounds.forEach(r => {
-      [r.start, r.end].forEach(ry => {
-        const l = doc.createElementNS(SVGNS,'line');
-        l.setAttribute('x1',fx(g.marginLeft)); l.setAttribute('y1',fx(ry)); l.setAttribute('x2',fx(w-g.marginRight)); l.setAttribute('y2',fx(ry));
-        gg.appendChild(l);
+      svg.appendChild(gg);
+    } else {
+      const gg = doc.createElementNS(SVGNS, 'g');
+      gg.setAttribute('stroke', '#4F9C8F'); gg.setAttribute('stroke-width', '0.75'); gg.setAttribute('fill','none');
+      geo.colBounds.forEach(c => {
+        [c.start, c.end].forEach(cx => {
+          const l = doc.createElementNS(SVGNS,'line');
+          l.setAttribute('x1',fx(cx)); l.setAttribute('y1',fx(g.marginTop)); l.setAttribute('x2',fx(cx)); l.setAttribute('y2',fx(h-g.marginBottom));
+          gg.appendChild(l);
+        });
       });
-    });
-    svg.appendChild(gg);
+      geo.rowBounds.forEach(r => {
+        [r.start, r.end].forEach(ry => {
+          const l = doc.createElementNS(SVGNS,'line');
+          l.setAttribute('x1',fx(g.marginLeft)); l.setAttribute('y1',fx(ry)); l.setAttribute('x2',fx(w-g.marginRight)); l.setAttribute('y2',fx(ry));
+          gg.appendChild(l);
+        });
+      });
+      svg.appendChild(gg);
+    }
   }
 
   return svg;
