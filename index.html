@@ -1627,6 +1627,15 @@ function renderStage(){
   alignSvg.innerHTML = '';
 
   renderElementPositions();
+  // Text is rendered at el.fontSize * pageScale (so a fixed reference
+  // size stays visually constant across canvas units — see refPx()) —
+  // renderElementPositions() alone only rescales each box's own left/
+  // top/width/height, not the font size/letter-spacing living inside
+  // it, so a zoom change left text either too small or too large for
+  // its (now differently-scaled) box, and auto-fit text in particular
+  // looked like it had picked the wrong size. Refreshing every text
+  // block's styling after a pageScale change keeps it in sync.
+  refreshElementVisuals();
 }
 
 /* ---------------------------------------------------------------------
@@ -2233,6 +2242,10 @@ function refreshElementVisuals(){
     const box = document.getElementById('box-' + el.id);
     if(!box) return;
     if(el.type === 'text'){
+      // Never tear down a block the user is actively typing into (e.g.
+      // a window resize or zoom firing mid-edit) — rebuilding its DOM
+      // here would drop focus and the caret along with it.
+      if(box.querySelector('.el-text.editing')) return;
       if(isPartOfChain(el)){ chainHeads.add(chainHead(el)); return; } // reflowed together, once, below
       renderTextContent(box, el);
       if(el.autoFit) autofitText(el, box);
