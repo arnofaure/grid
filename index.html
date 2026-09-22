@@ -2206,6 +2206,22 @@ function fitTextToBox(fullText, el, box){
   document.body.removeChild(measurer);
   return { shown, rest };
 }
+// The on-screen view only ever shows text that fits its box with zero
+// overflow (see applyTextOverflowClip) — exports must render that same
+// fitted text, not the full el.content, or a middle/bottom-anchored
+// block with more typed text than fits ends up computing its vertical
+// offset from a much taller (unfitted) block of text than what's ever
+// actually shown, and the visible, clipped slice no longer looks
+// aligned to that edge at all. Uses the live on-screen box as the
+// measurement reference, which works at any pageScale/zoom since both
+// the target box size and the font size scale by the same factor.
+function exportTextContent(el){
+  const full = el.content || '';
+  if(el.vAlign === 'justify') return full; // paragraphs spread via flex space-between — not a simple top-down fit
+  const box = document.getElementById('box-' + el.id);
+  if(!box) return full;
+  return fitTextToBox(full, el, box).shown;
+}
 function reflowChain(headEl){
   if(!headEl || headEl.type !== 'text') return;
   const chain = chainBlocks(headEl);
@@ -4338,7 +4354,7 @@ async function drawTextElement(ctx, el, x, y, w, h, scale){
   // user typed) separately, instead of collapsing the whole block into
   // one run of words first — otherwise an intentional blank line or
   // paragraph break the user typed would silently disappear on export.
-  const paragraphs = (el.content || '').split('\n');
+  const paragraphs = exportTextContent(el).split('\n');
   const lines = [];
   paragraphs.forEach(para => {
     const words = para.split(/\s+/).filter(w => w.length);
@@ -4519,7 +4535,7 @@ function buildExportSVG(includeGuides, transparent, includeBleed){
       const textStyle = `font-family:${family}; font-size:${el.fontSize}px; line-height:${el.lineHeight}; ` +
         `letter-spacing:${el.letterSpacing}px; font-weight:${el.weight}; font-style:${el.italic?'italic':'normal'}; ` +
         `text-align:${el.align}; color:${el.color}; width:100%; white-space:pre-wrap; word-wrap:break-word; margin:0;`;
-      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [el.content || ''];
+      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [exportTextContent(el)];
       paragraphs.forEach(p => {
         const div = doc.createElementNS(HTMLNS, 'div');
         div.setAttribute('xmlns', HTMLNS);
@@ -4754,7 +4770,7 @@ function buildPrintPage(includeBleed, includeGuides){
       box.style.display = 'flex';
       box.style.flexDirection = 'column';
       box.style.justifyContent = vAlignCSS[el.vAlign] || 'flex-start';
-      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [el.content || ''];
+      const paragraphs = el.vAlign === 'justify' ? (el.content || '').split('\n') : [exportTextContent(el)];
       paragraphs.forEach(p => {
         const txt = document.createElement('div');
         txt.className = 'print-text';
